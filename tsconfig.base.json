@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    "target": "es2016",
+    "lib": [
+      "dom",
+      "es2019"
+    ],
+    "moduleResolution": "Node",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "composite": true,
+    "sourceMap": true,
+    "isolatedModules": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "useDefineForClassFields": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "downlevelIteration": true,
+    "paths": {
+      "@imvu/client": ["packages/client/src"],
+      "@imvu/chkn": ["packages/chkn/src"],
+      "@imvu/imq": ["packages/imq/src"]
+    }
+  },
+  "exclude": [
+    "node_modules"
+  ]
+}

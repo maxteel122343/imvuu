@@ -1,0 +1,8 @@
+{
+  "name": "IMVU Dashboard",
+  "description": "Interactive dashboard for IMVU web client featuring authentication, notifications, direct messaging, chat room exploration, friend lists, and avatar profiles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

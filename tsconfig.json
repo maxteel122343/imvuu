@@ -1,0 +1,18 @@
+{
+  "files": [],
+  "compilerOptions": {
+    "disableSourceOfProjectReferenceRedirect": true,
+    "esModuleInterop": true
+  },
+  "references": [
+    {
+      "path": "./packages/client"
+    },
+    {
+      "path": "./packages/chkn"
+    },
+    {
+      "path": "./packages/imq"
+    }
+  ]
+}

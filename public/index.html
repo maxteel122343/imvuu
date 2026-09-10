@@ -1,0 +1,2983 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>IMVU Dashboard</title>
+	<meta name="description" content="Interactive dashboard for IMVU web client featuring real message inbox, online presence notifications, activity feed, chat room exploration, friend lists, and user search.">
+	<meta property="og:title" content="IMVU Dashboard">
+	<meta property="og:description" content="Interactive dashboard for IMVU web client featuring real message inbox, online presence notifications, activity feed, chat room exploration, friend lists, and user search.">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+	<style>
+		:root {
+			--bg-base: #0f1218;
+			--bg-surface: #181a20;
+			--bg-card: #202228;
+			--bg-card-hover: #262932;
+			--panel-border: rgba(255, 255, 255, 0.08);
+			--accent-purple: #7c3aed;
+			--accent-pink: #ec4899;
+			--accent-imvu-pink: #e91e63;
+			--accent-yellow: #f59e0b;
+			--online-green: #00e676;
+			--offline-gray: #64748b;
+			--text-primary: #f8fafc;
+			--text-secondary: #94a3b8;
+			--text-muted: #64748b;
+		}
+
+		* {
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+			font-family: 'Plus Jakarta Sans', sans-serif;
+		}
+
+		body {
+			min-height: 100vh;
+			background: radial-gradient(circle at 10% 20%, #171b26 0%, #0c0e14 90%);
+			color: var(--text-primary);
+			display: flex;
+			justify-content: center;
+			align-items: flex-start;
+			padding: 16px;
+		}
+
+		.app-wrapper {
+			width: 100%;
+			max-width: 1200px;
+			margin: 0 auto;
+		}
+
+		/* Top Navigation Bar */
+		.top-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			background: var(--bg-surface);
+			border: 1px solid var(--panel-border);
+			border-radius: 16px;
+			padding: 14px 20px;
+			margin-bottom: 20px;
+			box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+		}
+
+		.brand-area {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+		}
+
+		.brand-logo {
+			width: 36px;
+			height: 36px;
+			border-radius: 8px;
+			background: linear-gradient(135deg, var(--accent-purple), var(--accent-pink));
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-weight: 800;
+			font-size: 16px;
+			color: white;
+			box-shadow: 0 4px 12px rgba(236, 72, 153, 0.35);
+		}
+
+		.brand-title {
+			font-size: 18px;
+			font-weight: 800;
+			letter-spacing: -0.3px;
+		}
+
+		.header-actions {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+		}
+
+		.btn-header-action {
+			background: var(--bg-card);
+			border: 1px solid var(--panel-border);
+			color: var(--text-primary);
+			padding: 8px 14px;
+			border-radius: 10px;
+			font-size: 13px;
+			font-weight: 600;
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			transition: all 0.2s ease;
+		}
+		.btn-header-action:hover {
+			background: var(--bg-card-hover);
+			border-color: rgba(255, 255, 255, 0.2);
+		}
+
+		.badge-notif {
+			background: var(--accent-imvu-pink);
+			color: white;
+			font-size: 11px;
+			font-weight: 800;
+			padding: 2px 7px;
+			border-radius: 10px;
+		}
+
+		/* Login Card */
+		.login-card {
+			max-width: 440px;
+			margin: 60px auto 0;
+			background: var(--bg-surface);
+			border: 1px solid var(--panel-border);
+			border-radius: 24px;
+			padding: 36px 32px;
+			box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+		}
+
+		.badge-tag {
+			display: inline-block;
+			background: linear-gradient(90deg, var(--accent-purple), var(--accent-pink));
+			color: white;
+			font-size: 11px;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 1.2px;
+			padding: 4px 12px;
+			border-radius: 20px;
+			margin-bottom: 12px;
+		}
+
+		.form-group { margin-bottom: 18px; }
+		label { display: block; font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; }
+		input {
+			width: 100%;
+			padding: 12px 16px;
+			background: rgba(15, 20, 30, 0.8);
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			border-radius: 10px;
+			color: white;
+			font-size: 14px;
+			outline: none;
+			transition: border-color 0.2s;
+		}
+		input:focus { border-color: var(--accent-purple); }
+
+		.btn-primary {
+			width: 100%;
+			padding: 14px;
+			background: linear-gradient(90deg, #7c3aed 0%, #db2777 100%);
+			border: none;
+			border-radius: 12px;
+			color: white;
+			font-size: 14px;
+			font-weight: 700;
+			cursor: pointer;
+			transition: all 0.2s ease;
+		}
+		.btn-primary:hover {
+			opacity: 0.95;
+			transform: translateY(-1px);
+			box-shadow: 0 8px 20px -4px rgba(219, 39, 119, 0.4);
+		}
+
+		.status-box {
+			margin-top: 16px;
+			padding: 12px;
+			border-radius: 10px;
+			font-size: 13px;
+			display: none;
+		}
+		.status-box.error { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; }
+		.status-box.success { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #86efac; }
+
+		/* Dashboard Layout */
+		.dashboard-layout {
+			display: grid;
+			grid-template-columns: 260px 1fr;
+			gap: 20px;
+		}
+
+		/* Sidebar */
+		.sidebar {
+			background: var(--bg-surface);
+			border: 1px solid var(--panel-border);
+			border-radius: 18px;
+			padding: 20px;
+			display: flex;
+			flex-direction: column;
+			gap: 16px;
+			box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+		}
+
+		.user-mini-card {
+			text-align: center;
+			padding-bottom: 16px;
+			border-bottom: 1px solid var(--panel-border);
+		}
+
+		.user-avatar-wrap {
+			position: relative;
+			display: inline-block;
+			margin-bottom: 8px;
+		}
+
+		.user-avatar-wrap img {
+			width: 76px;
+			height: 76px;
+			border-radius: 50%;
+			object-fit: cover;
+			border: 2px solid var(--accent-purple);
+			box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+		}
+
+		.online-dot {
+			position: absolute;
+			bottom: 4px;
+			right: 4px;
+			width: 14px;
+			height: 14px;
+			background-color: var(--online-green);
+			border: 2.5px solid #181a20;
+			border-radius: 50%;
+			box-shadow: 0 0 8px rgba(0, 230, 118, 0.6);
+		}
+
+		.online-dot.offline {
+			background-color: var(--offline-gray);
+			box-shadow: none;
+		}
+
+		.nav-menu {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+		}
+
+		.nav-item {
+			padding: 12px 14px;
+			border-radius: 10px;
+			background: transparent;
+			color: var(--text-secondary);
+			border: none;
+			text-align: left;
+			font-size: 14px;
+			font-weight: 600;
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			transition: all 0.2s ease;
+		}
+
+		.nav-item:hover, .nav-item.active {
+			background: rgba(255, 255, 255, 0.08);
+			color: white;
+		}
+		.nav-item.active {
+			border-left: 3px solid var(--accent-pink);
+		}
+
+		/* Main Content Panel */
+		.main-content {
+			background: var(--bg-surface);
+			border: 1px solid var(--panel-border);
+			border-radius: 18px;
+			padding: 24px;
+			min-height: 600px;
+			box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+		}
+
+		.tab-content { display: none; }
+		.tab-content.active { display: block; }
+
+		/* =========================================================
+		   1. CAIXA DE MENSAGENS REAL (DE ACORDO COM A IMAGEM 1)
+		   ========================================================= */
+		.messages-container {
+			display: grid;
+			grid-template-columns: 320px 1fr;
+			gap: 16px;
+			height: 620px;
+			border: 1px solid var(--panel-border);
+			border-radius: 14px;
+			overflow: hidden;
+			background: #17181c;
+		}
+
+		/* Coluna Esquerda: Lista de Conversas */
+		.conversations-sidebar {
+			background: #1e2025;
+			border-right: 1px solid var(--panel-border);
+			display: flex;
+			flex-direction: column;
+		}
+
+		.conversations-header {
+			padding: 14px 16px;
+			border-top: 3px solid var(--accent-yellow); /* Barra amarela como na Imagem 1 */
+			border-bottom: 1px solid var(--panel-border);
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			background: #1a1b20;
+		}
+
+		.conversations-header h3 {
+			font-size: 15px;
+			font-weight: 700;
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.conversations-list {
+			flex: 1;
+			overflow-y: auto;
+		}
+
+		.conversation-item {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			padding: 14px 16px;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+			cursor: pointer;
+			transition: background 0.15s ease;
+			position: relative;
+		}
+
+		.conversation-item:hover {
+			background: rgba(255, 255, 255, 0.05);
+		}
+
+		.conversation-item.active {
+			background: rgba(124, 58, 237, 0.15);
+			border-left: 3px solid var(--accent-yellow);
+		}
+
+		.conv-avatar-wrap {
+			position: relative;
+			flex-shrink: 0;
+		}
+
+		.conv-avatar-wrap img {
+			width: 48px;
+			height: 48px;
+			border-radius: 50%;
+			object-fit: cover;
+			background: #2a2b30;
+		}
+
+		/* Bolinha Verde de Online no Canto Inferior Direito do Avatar (Imagem 1) */
+		.conv-online-dot {
+			position: absolute;
+			bottom: 1px;
+			right: 1px;
+			width: 12px;
+			height: 12px;
+			background-color: var(--online-green);
+			border: 2px solid #1e2025;
+			border-radius: 50%;
+			box-shadow: 0 0 6px rgba(0, 230, 118, 0.8);
+		}
+
+		.conv-info {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.conv-top-row {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+			margin-bottom: 4px;
+		}
+
+		.conv-username {
+			font-size: 14px;
+			font-weight: 700;
+			color: #ffffff;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.conv-timestamp {
+			font-size: 11px;
+			color: #94a3b8;
+			flex-shrink: 0;
+			margin-left: 6px;
+		}
+
+		.conv-snippet {
+			font-size: 12px;
+			color: #9ca3af;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			line-height: 1.4;
+		}
+
+		.conv-unread-badge {
+			width: 8px;
+			height: 8px;
+			background: var(--accent-pink);
+			border-radius: 50%;
+			position: absolute;
+			right: 12px;
+			top: 50%;
+			transform: translateY(-50%);
+		}
+
+		/* Coluna Direita: Janela de Chat Aberto */
+		.chat-window {
+			display: flex;
+			flex-direction: column;
+			background: #17181d;
+		}
+
+		.chat-header {
+			padding: 12px 20px;
+			background: #1c1e24;
+			border-bottom: 1px solid var(--panel-border);
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+		}
+
+		.chat-header-user {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+		}
+
+		.chat-header-user img {
+			width: 42px;
+			height: 42px;
+			border-radius: 50%;
+			object-fit: cover;
+		}
+
+		.chat-status-pill {
+			display: inline-flex;
+			align-items: center;
+			gap: 5px;
+			font-size: 11px;
+			font-weight: 600;
+			padding: 2px 8px;
+			border-radius: 12px;
+			background: rgba(0, 230, 118, 0.15);
+			color: #86efac;
+			border: 1px solid rgba(0, 230, 118, 0.3);
+		}
+
+		.chat-status-pill.offline {
+			background: rgba(148, 163, 184, 0.15);
+			color: #cbd5e1;
+			border-color: rgba(148, 163, 184, 0.3);
+		}
+
+		.chat-messages-body {
+			flex: 1;
+			padding: 20px;
+			overflow-y: auto;
+			display: flex;
+			flex-direction: column;
+			gap: 14px;
+		}
+
+		.msg-bubble-wrap {
+			display: flex;
+			flex-direction: column;
+			max-width: 75%;
+		}
+
+		.msg-bubble-wrap.theirs {
+			align-self: flex-start;
+		}
+
+		.msg-bubble-wrap.mine {
+			align-self: flex-end;
+		}
+
+		.msg-bubble {
+			padding: 12px 16px;
+			border-radius: 16px;
+			font-size: 13.5px;
+			line-height: 1.5;
+			word-wrap: break-word;
+		}
+
+		.msg-bubble-wrap.theirs .msg-bubble {
+			background: #252830;
+			color: #f1f5f9;
+			border: 1px solid rgba(255, 255, 255, 0.06);
+			border-bottom-left-radius: 4px;
+		}
+
+		.msg-bubble-wrap.mine .msg-bubble {
+			background: linear-gradient(135deg, #7c3aed, #9333ea);
+			color: white;
+			border-bottom-right-radius: 4px;
+			box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+		}
+
+		.msg-meta {
+			font-size: 10px;
+			color: var(--text-muted);
+			margin-top: 4px;
+			padding: 0 4px;
+		}
+		.msg-bubble-wrap.mine .msg-meta { text-align: right; }
+
+		.chat-input-bar {
+			padding: 14px 18px;
+			background: #1c1e24;
+			border-top: 1px solid var(--panel-border);
+			display: flex;
+			gap: 10px;
+			align-items: center;
+		}
+
+		.chat-input-bar input {
+			flex: 1;
+			background: #111216;
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			padding: 12px 16px;
+			border-radius: 20px;
+		}
+
+		.btn-send-msg {
+			width: auto;
+			padding: 10px 20px;
+			border-radius: 20px;
+			background: linear-gradient(90deg, #7c3aed 0%, #db2777 100%);
+			font-size: 13px;
+			font-weight: 700;
+			border: none;
+			color: white;
+			cursor: pointer;
+		}
+
+		/* =========================================================
+		   2. PAINEL DE ATIVIDADES E NOTIFICAÇÕES (IMAGEM 2 - ACTIVITY)
+		   ========================================================= */
+		.activity-panel-wrap {
+			background: #1c1d22;
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			border-radius: 12px;
+			max-width: 480px;
+			margin: 0 auto;
+			overflow: hidden;
+			box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+		}
+
+		.activity-panel-header {
+			padding: 16px 20px;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+			background: #18191d;
+		}
+
+		.activity-title {
+			font-size: 13px;
+			font-weight: 800;
+			letter-spacing: 1.5px;
+			color: #e2e8f0;
+			text-transform: uppercase;
+		}
+
+		.btn-close-activity {
+			background: transparent;
+			border: none;
+			color: #94a3b8;
+			font-size: 18px;
+			cursor: pointer;
+			line-height: 1;
+			padding: 4px 8px;
+			border-radius: 6px;
+		}
+		.btn-close-activity:hover {
+			color: white;
+			background: rgba(255, 255, 255, 0.1);
+		}
+
+		.activity-section-label {
+			padding: 12px 20px 6px;
+			font-size: 11px;
+			font-weight: 800;
+			letter-spacing: 1.5px;
+			color: #94a3b8;
+			text-transform: uppercase;
+		}
+
+		.activity-items-list {
+			display: flex;
+			flex-direction: column;
+		}
+
+		.activity-row {
+			display: flex;
+			align-items: center;
+			gap: 14px;
+			padding: 12px 20px;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+			transition: background 0.15s;
+		}
+		.activity-row:hover {
+			background: rgba(255, 255, 255, 0.03);
+		}
+
+		.activity-row img {
+			width: 44px;
+			height: 44px;
+			border-radius: 50%;
+			object-fit: cover;
+			flex-shrink: 0;
+			background: #2b2d35;
+		}
+
+		.activity-content {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.activity-user-name {
+			font-size: 13px;
+			font-weight: 700;
+			color: #ffffff;
+			margin-bottom: 2px;
+		}
+
+		.activity-desc {
+			font-size: 12px;
+			color: #cbd5e1;
+			line-height: 1.35;
+			margin-bottom: 2px;
+		}
+
+		.activity-time {
+			font-size: 11px;
+			color: #94a3b8;
+		}
+
+		/* Botão JOIN quadrado com borda branca idêntico à imagem 2 */
+		.btn-activity-join {
+			background: transparent;
+			border: 1px solid #ffffff;
+			color: #ffffff;
+			padding: 6px 18px;
+			font-size: 11.5px;
+			font-weight: 700;
+			letter-spacing: 1px;
+			border-radius: 2px;
+			cursor: pointer;
+			text-transform: uppercase;
+			transition: all 0.2s ease;
+			flex-shrink: 0;
+		}
+		.btn-activity-join:hover {
+			background: #ffffff;
+			color: #000000;
+		}
+
+		.activity-action-icon {
+			font-size: 18px;
+			color: #cbd5e1;
+			cursor: pointer;
+			padding: 6px;
+			border-radius: 6px;
+		}
+		.activity-action-icon:hover {
+			color: var(--accent-pink);
+			background: rgba(255, 255, 255, 0.08);
+		}
+
+		/* =========================================================
+		   3. PESQUISA DE USUÁRIO (DE ACORDO COM A IMAGEM 3)
+		   ========================================================= */
+		.search-header-bar {
+			display: flex;
+			gap: 12px;
+			margin-bottom: 20px;
+		}
+
+		.search-header-bar input {
+			flex: 1;
+		}
+
+		.btn-search-trigger {
+			width: auto;
+			padding: 0 24px;
+			border-radius: 10px;
+			font-size: 13.5px;
+			font-weight: 700;
+		}
+
+		.search-tags-row {
+			display: flex;
+			gap: 8px;
+			margin-bottom: 24px;
+			flex-wrap: wrap;
+		}
+
+		.tag-btn {
+			background: rgba(255, 255, 255, 0.06);
+			border: 1px solid var(--panel-border);
+			color: #cbd5e1;
+			font-size: 12px;
+			font-weight: 600;
+			padding: 6px 14px;
+			border-radius: 20px;
+			cursor: pointer;
+			transition: all 0.2s ease;
+		}
+		.tag-btn.active, .tag-btn:hover {
+			background: var(--accent-purple);
+			color: white;
+			border-color: var(--accent-purple);
+		}
+
+		/* Grid de Usuários Idêntico à Imagem 3 */
+		.imvu-users-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+			gap: 16px;
+		}
+
+		.imvu-user-card {
+			background: #25262c; /* Fundo escuro do card da imagem 3 */
+			border: 1px solid rgba(255, 255, 255, 0.05);
+			border-radius: 6px;
+			overflow: hidden;
+			display: flex;
+			flex-direction: column;
+			transition: transform 0.2s, box-shadow 0.2s;
+			position: relative;
+		}
+
+		.imvu-user-card:hover {
+			transform: translateY(-3px);
+			box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
+			border-color: rgba(255, 255, 255, 0.15);
+		}
+
+		.user-card-image-wrap {
+			position: relative;
+			width: 100%;
+			aspect-ratio: 1 / 1;
+			background: #1b1c20;
+			overflow: hidden;
+		}
+
+		.user-card-image-wrap img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			display: block;
+		}
+
+		/* Selo AP Rosa no Canto Superior Direito (Imagem 3) */
+		.badge-ap {
+			position: absolute;
+			top: 8px;
+			right: 8px;
+			background: var(--accent-imvu-pink);
+			color: white;
+			font-weight: 800;
+			font-size: 10px;
+			padding: 2px 6px;
+			border-radius: 3px;
+			letter-spacing: 0.5px;
+			box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+		}
+
+		.badge-vip {
+			position: absolute;
+			top: 8px;
+			left: 8px;
+			background: #f59e0b;
+			color: black;
+			font-weight: 800;
+			font-size: 9px;
+			padding: 2px 6px;
+			border-radius: 3px;
+		}
+
+		.user-card-meta {
+			padding: 10px 12px;
+			background: #25262c;
+			display: flex;
+			flex-direction: column;
+			gap: 2px;
+		}
+
+		.user-card-displayname {
+			font-size: 13.5px;
+			font-weight: 700;
+			color: #ffffff;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.user-card-handle {
+			font-size: 12px;
+			color: #94a3b8;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.user-card-location {
+			font-size: 11.5px;
+			color: #94a3b8;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.user-card-actions {
+			padding: 8px 12px 10px;
+			background: #202126;
+			border-top: 1px solid rgba(255, 255, 255, 0.04);
+			display: flex;
+			gap: 6px;
+		}
+
+		.btn-card-action {
+			flex: 1;
+			padding: 6px 8px;
+			background: rgba(255, 255, 255, 0.08);
+			border: 1px solid rgba(255, 255, 255, 0.08);
+			color: #cbd5e1;
+			font-size: 11px;
+			font-weight: 600;
+			border-radius: 6px;
+			cursor: pointer;
+			transition: all 0.15s;
+		}
+		.btn-card-action:hover {
+			background: var(--accent-purple);
+			color: white;
+			border-color: var(--accent-purple);
+		}
+
+		/* =========================================================
+		   TOAST / NOTIFICAÇÃO AO VIVO NO TOPO (ALERTA DE MENSAGEM & ONLINE)
+		   ========================================================= */
+		.toast-container {
+			position: fixed;
+			top: 24px;
+			right: 24px;
+			z-index: 9999;
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+			pointer-events: none;
+		}
+
+		.toast-item {
+			pointer-events: auto;
+			min-width: 320px;
+			max-width: 380px;
+			background: #1e2027;
+			border-left: 4px solid var(--accent-imvu-pink);
+			border-radius: 10px;
+			padding: 14px 16px;
+			box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+			cursor: pointer;
+		}
+
+		.toast-item.online {
+			border-left-color: var(--online-green);
+		}
+
+		.toast-avatar {
+			width: 40px;
+			height: 40px;
+			border-radius: 50%;
+			object-fit: cover;
+		}
+
+		.toast-info {
+			flex: 1;
+		}
+
+		.toast-title {
+			font-size: 13px;
+			font-weight: 700;
+			color: white;
+		}
+
+		.toast-msg {
+			font-size: 12px;
+			color: #cbd5e1;
+			margin-top: 2px;
+			line-height: 1.3;
+		}
+
+		@keyframes slideIn {
+			from { transform: translateX(100%); opacity: 0; }
+			to { transform: translateX(0); opacity: 1; }
+		}
+
+		/* =========================================================
+		   MODAL EMBUTIDO DE PERFIL (NÃO SOBREPOSTO NA TELA)
+		   ========================================================= */
+		.embedded-profile-card {
+			background: #1e2027;
+			border: 1px solid rgba(255, 255, 255, 0.14);
+			border-radius: 16px;
+			margin-bottom: 24px;
+			overflow: hidden;
+			box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+			animation: slideDownFade 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+		}
+
+		@keyframes slideDownFade {
+			from { opacity: 0; transform: translateY(-12px); }
+			to { opacity: 1; transform: translateY(0); }
+		}
+
+		.embedded-profile-banner {
+			height: 130px;
+			background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
+			position: relative;
+			display: flex;
+			align-items: flex-start;
+			justify-content: flex-end;
+			padding: 14px 18px;
+		}
+
+		.btn-close-embedded {
+			background: rgba(0, 0, 0, 0.5);
+			border: 1px solid rgba(255, 255, 255, 0.2);
+			color: white;
+			padding: 6px 14px;
+			border-radius: 20px;
+			font-size: 12px;
+			font-weight: 700;
+			cursor: pointer;
+			transition: all 0.2s;
+			backdrop-filter: blur(4px);
+		}
+		.btn-close-embedded:hover {
+			background: rgba(239, 68, 68, 0.85);
+			border-color: #ef4444;
+		}
+
+		.embedded-profile-content {
+			padding: 0 24px 24px;
+		}
+
+		.embedded-avatar-row {
+			display: flex;
+			justify-content: space-between;
+			align-items: flex-end;
+			margin-top: -55px;
+			margin-bottom: 16px;
+			flex-wrap: wrap;
+			gap: 12px;
+		}
+
+		.embedded-avatar-wrapper {
+			position: relative;
+		}
+
+		.embedded-avatar-img {
+			width: 105px;
+			height: 105px;
+			border-radius: 18px;
+			border: 4px solid #1e2027;
+			object-fit: cover;
+			background: #111216;
+			box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+		}
+
+		.embedded-badges-group {
+			display: flex;
+			gap: 8px;
+			align-items: center;
+		}
+
+		.badge-pill-ap {
+			background: var(--accent-imvu-pink);
+			color: white;
+			font-weight: 800;
+			font-size: 11px;
+			padding: 4px 10px;
+			border-radius: 6px;
+			letter-spacing: 0.5px;
+		}
+
+		.badge-pill-vip {
+			background: #f59e0b;
+			color: #111;
+			font-weight: 800;
+			font-size: 11px;
+			padding: 4px 10px;
+			border-radius: 6px;
+			letter-spacing: 0.5px;
+		}
+
+		.badge-pill-creator {
+			background: #8b5cf6;
+			color: white;
+			font-weight: 800;
+			font-size: 11px;
+			padding: 4px 10px;
+			border-radius: 6px;
+		}
+
+		.embedded-profile-details {
+			display: grid;
+			grid-template-columns: 1.2fr 1fr;
+			gap: 20px;
+			margin-top: 10px;
+		}
+
+		@media (max-width: 768px) {
+			.embedded-profile-details {
+				grid-template-columns: 1fr;
+			}
+		}
+
+		.embedded-bio-box {
+			background: #14161b;
+			border: 1px solid rgba(255, 255, 255, 0.06);
+			padding: 14px 16px;
+			border-radius: 12px;
+			font-size: 13px;
+			color: #cbd5e1;
+			line-height: 1.5;
+			margin-top: 10px;
+		}
+
+		.embedded-stats-grid {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 10px;
+			margin-top: 12px;
+		}
+
+		.embedded-stat-box {
+			background: #171920;
+			border: 1px solid rgba(255, 255, 255, 0.05);
+			padding: 10px 12px;
+			border-radius: 10px;
+			text-align: center;
+		}
+		.embedded-stat-value {
+			font-size: 15px;
+			font-weight: 800;
+			color: white;
+		}
+		.embedded-stat-label {
+			font-size: 10.5px;
+			color: #94a3b8;
+			text-transform: uppercase;
+			margin-top: 2px;
+		}
+
+		.embedded-link-row {
+			background: #14161b;
+			border: 1px dashed rgba(255, 255, 255, 0.15);
+			padding: 10px 14px;
+			border-radius: 10px;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-top: 14px;
+			gap: 10px;
+		}
+		.embedded-link-text {
+			font-family: monospace;
+			font-size: 12px;
+			color: #93c5fd;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		/* =========================================================
+		   SALAS DE CHAT 3D: CARDS E LIVE VIEW
+		   ========================================================= */
+		.rooms-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+			gap: 20px;
+		}
+
+		.imvu-room-card {
+			background: #1f2026;
+			border: 1px solid rgba(255, 255, 255, 0.08);
+			border-radius: 12px;
+			overflow: hidden;
+			display: flex;
+			flex-direction: column;
+			transition: all 0.2s ease;
+			position: relative;
+		}
+		.imvu-room-card:hover {
+			transform: translateY(-3px);
+			border-color: rgba(255, 255, 255, 0.2);
+			box-shadow: 0 16px 32px rgba(0, 0, 0, 0.6);
+		}
+
+		.room-card-media {
+			position: relative;
+			width: 100%;
+			aspect-ratio: 16 / 9;
+			background: #111216;
+			overflow: hidden;
+		}
+		.room-card-media img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			display: block;
+			transition: transform 0.3s ease;
+		}
+		.imvu-room-card:hover .room-card-media img {
+			transform: scale(1.04);
+		}
+
+		.room-card-host-badge {
+			position: absolute;
+			bottom: 10px;
+			left: 10px;
+			background: rgba(0, 0, 0, 0.75);
+			backdrop-filter: blur(4px);
+			padding: 4px 10px 4px 6px;
+			border-radius: 20px;
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			font-size: 11.5px;
+			color: white;
+			border: 1px solid rgba(255, 255, 255, 0.15);
+		}
+		.room-card-host-badge img {
+			width: 22px;
+			height: 22px;
+			border-radius: 50%;
+			object-fit: cover;
+		}
+
+		.room-badge-occupancy {
+			position: absolute;
+			top: 10px;
+			right: 10px;
+			background: rgba(0, 0, 0, 0.8);
+			border: 1px solid rgba(255, 255, 255, 0.2);
+			color: #86efac;
+			font-size: 11px;
+			font-weight: 700;
+			padding: 4px 10px;
+			border-radius: 20px;
+			backdrop-filter: blur(4px);
+		}
+
+		.room-badge-fav-toggle {
+			position: absolute;
+			top: 10px;
+			left: 10px;
+			background: rgba(0, 0, 0, 0.75);
+			border: 1px solid rgba(255, 255, 255, 0.2);
+			color: #fbbf24;
+			font-size: 14px;
+			width: 32px;
+			height: 32px;
+			border-radius: 50%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			cursor: pointer;
+			transition: transform 0.15s;
+		}
+		.room-badge-fav-toggle:hover {
+			transform: scale(1.15);
+		}
+
+		.room-card-body {
+			padding: 14px 16px;
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+		}
+
+		.room-card-id-tag {
+			font-family: monospace;
+			font-size: 11px;
+			color: var(--accent-pink);
+			font-weight: 700;
+			margin-bottom: 4px;
+			letter-spacing: 0.5px;
+		}
+
+		.room-card-title {
+			font-size: 16px;
+			font-weight: 800;
+			color: white;
+			margin-bottom: 6px;
+		}
+
+		.room-card-desc {
+			font-size: 12px;
+			color: #94a3b8;
+			line-height: 1.4;
+			margin-bottom: 12px;
+			display: -webkit-box;
+			-webkit-line-clamp: 2;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+			flex: 1;
+		}
+
+		.room-card-actions {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 8px;
+			padding-top: 8px;
+			border-top: 1px solid rgba(255, 255, 255, 0.05);
+		}
+
+		.btn-room-enter {
+			background: linear-gradient(90deg, #7c3aed 0%, #db2777 100%);
+			color: white;
+			border: none;
+			padding: 8px 12px;
+			border-radius: 8px;
+			font-size: 12px;
+			font-weight: 700;
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+			transition: opacity 0.2s;
+		}
+		.btn-room-enter:hover {
+			opacity: 0.9;
+		}
+
+		.btn-room-sub {
+			background: rgba(255, 255, 255, 0.07);
+			border: 1px solid rgba(255, 255, 255, 0.1);
+			color: #e2e8f0;
+			padding: 8px 10px;
+			border-radius: 8px;
+			font-size: 11.5px;
+			font-weight: 600;
+			cursor: pointer;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 4px;
+			text-decoration: none;
+			transition: background 0.15s;
+		}
+		.btn-room-sub:hover {
+			background: rgba(255, 255, 255, 0.14);
+			color: white;
+		}
+
+		/* =========================================================
+		   TELA DE SALA 3D AO VIVO (IN-ROOM LIVE VIEW)
+		   ========================================================= */
+		.active-room-container {
+			background: #17181e;
+			border: 1px solid rgba(255, 255, 255, 0.12);
+			border-radius: 16px;
+			overflow: hidden;
+			box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+		}
+
+		.active-room-topbar {
+			padding: 14px 20px;
+			background: #121317;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 12px;
+		}
+
+		.active-room-title-wrap {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+		}
+
+		.active-room-hero {
+			display: grid;
+			grid-template-columns: 1.1fr 1fr;
+			gap: 20px;
+			padding: 20px;
+			background: #1a1b22;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		}
+
+		@media (max-width: 860px) {
+			.active-room-hero {
+				grid-template-columns: 1fr;
+			}
+		}
+
+		.room-stage-preview {
+			position: relative;
+			border-radius: 12px;
+			overflow: hidden;
+			aspect-ratio: 16 / 10;
+			background: #0d0e12;
+			box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+		}
+		.room-stage-preview img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+
+		.room-stage-overlay-info {
+			position: absolute;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			padding: 16px;
+			background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+		}
+
+		/* SEÇÃO OCCUPANCY FIEL À IMAGEM 6 DO USUÁRIO */
+		.room-occupancy-section {
+			background: #14151b;
+			border: 1px solid rgba(255, 255, 255, 0.06);
+			border-radius: 12px;
+			padding: 18px 20px;
+			margin-top: 14px;
+		}
+
+		.occupancy-header-title {
+			font-size: 12px;
+			font-weight: 800;
+			letter-spacing: 1.5px;
+			color: #e2e8f0;
+			text-transform: uppercase;
+			margin-bottom: 14px;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+		}
+
+		/* Slots de Ocupação com borda tracejada dourada / champanhe (Imagem 6) */
+		.occupancy-slots-row {
+			display: flex;
+			gap: 16px;
+			flex-wrap: wrap;
+			align-items: center;
+		}
+
+		.occupancy-slot-circle {
+			width: 64px;
+			height: 64px;
+			border-radius: 50%;
+			border: 2px dashed #ca8a04; /* Borda tracejada dourada do print */
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			position: relative;
+			background: rgba(202, 138, 4, 0.05);
+			transition: all 0.2s;
+			cursor: pointer;
+		}
+		.occupancy-slot-circle:hover {
+			border-color: #facc15;
+			background: rgba(202, 138, 4, 0.12);
+		}
+
+		.occupancy-slot-circle.occupied {
+			border-style: solid;
+			border-color: #22c55e;
+			padding: 2px;
+			background: #1e2027;
+		}
+
+		.occupancy-slot-circle.occupied img {
+			width: 100%;
+			height: 100%;
+			border-radius: 50%;
+			object-fit: cover;
+		}
+
+		.slot-user-tooltip {
+			position: absolute;
+			bottom: -22px;
+			font-size: 10.5px;
+			font-weight: 700;
+			white-space: nowrap;
+			color: #cbd5e1;
+		}
+
+		.active-room-chat-box {
+			display: flex;
+			flex-direction: column;
+			height: 380px;
+			background: #16171d;
+		}
+
+		.active-room-chat-log {
+			flex: 1;
+			overflow-y: auto;
+			padding: 16px 20px;
+			display: flex;
+			flex-direction: column;
+			gap: 12px;
+		}
+
+		.room-chat-msg {
+			display: flex;
+			gap: 10px;
+			align-items: flex-start;
+		}
+		.room-chat-avatar {
+			width: 34px;
+			height: 34px;
+			border-radius: 50%;
+			object-fit: cover;
+			flex-shrink: 0;
+		}
+		.room-chat-bubble {
+			background: #23252e;
+			border: 1px solid rgba(255, 255, 255, 0.05);
+			padding: 8px 14px;
+			border-radius: 12px;
+			font-size: 13px;
+			color: #f1f5f9;
+			max-width: 85%;
+		}
+		.room-chat-sender {
+			font-size: 11px;
+			font-weight: 700;
+			color: var(--accent-pink);
+			margin-bottom: 2px;
+		}
+		.room-chat-system-msg {
+			text-align: center;
+			font-size: 11.5px;
+			color: #94a3b8;
+			background: rgba(255, 255, 255, 0.03);
+			padding: 6px 12px;
+			border-radius: 20px;
+			margin: 4px auto;
+		}
+
+		@media (max-width: 768px) {
+			.dashboard-layout {
+				grid-template-columns: 1fr;
+			}
+			.messages-container {
+				grid-template-columns: 1fr;
+				height: auto;
+			}
+			.conversations-sidebar {
+				height: 280px;
+			}
+			.chat-window {
+				height: 440px;
+			}
+		}
+	</style>
+</head>
+<body>
+
+	<!-- Container de Toasts de Notificação em Tempo Real -->
+	<div id="toastContainer" class="toast-container"></div>
+
+	<div class="app-wrapper">
+
+		<!-- Barra Superior de Controle e Notificações -->
+		<div class="top-header">
+			<div class="brand-area">
+				<div class="brand-logo">IM</div>
+				<div>
+					<div class="brand-title">IMVU Next Dashboard</div>
+					<div style="font-size: 11px; color: var(--text-secondary);">Mensagens • Presença Online • Atividade</div>
+				</div>
+			</div>
+
+			<div class="header-actions">
+				<!-- Botão de Notificações / Atividade (Imagem 2) -->
+				<button class="btn-header-action" onclick="openActivityModal()" title="Abrir painel de notificações">
+					🔔 <span>Atividade</span>
+					<span class="badge-notif" id="notifBadge">3</span>
+				</button>
+
+				<!-- Botão para Testar Alerta / Simulação Instantânea -->
+				<button class="btn-header-action" onclick="simulateIncomingMessage()" style="background: rgba(236, 72, 153, 0.2); border-color: rgba(236, 72, 153, 0.4); color: #f472b6;" title="Simular o recebimento de uma mensagem em tempo real">
+					⚡ <span>Simular Mensagem</span>
+				</button>
+
+				<button class="btn-header-action" onclick="toggleSelectedUserStatus()" style="background: rgba(0, 230, 118, 0.15); border-color: rgba(0, 230, 118, 0.3); color: #86efac;" title="Alternar status online da pessoa com aviso">
+					🟢 <span>Alternar Online</span>
+				</button>
+			</div>
+		</div>
+
+		<!-- TELA DE LOGIN -->
+		<div id="loginCard" class="login-card">
+			<div style="text-align: center; margin-bottom: 24px;">
+				<span class="badge-tag">IMVU Conexão</span>
+				<h1 style="font-size: 24px; font-weight: 800; margin-bottom: 6px;">Entrar no IMVU</h1>
+				<p style="color: var(--text-secondary); font-size: 13.5px;">Acesse a caixa de mensagens, notificações e pesquisa</p>
+			</div>
+
+			<form id="loginForm">
+				<div class="form-group">
+					<label>Usuário ou E-mail IMVU</label>
+					<input type="text" id="username" placeholder="Ex: Bellinda_vip ou seu usuário" required>
+				</div>
+				<div class="form-group">
+					<label>Senha</label>
+					<input type="password" id="password" placeholder="••••••••••••" required>
+				</div>
+				<div class="form-group">
+					<label>Código 2FA (opcional)</label>
+					<input type="text" id="twoFactorCode" placeholder="Ex: 123456">
+				</div>
+				<button type="submit" id="btnSubmit" class="btn-primary">Entrar no Dashboard</button>
+			</form>
+
+			<div id="statusBox" class="status-box"></div>
+		</div>
+
+		<!-- DASHBOARD PRINCIPAL (Exibido após login) -->
+		<div id="dashboardLayout" class="dashboard-layout" style="display: none;">
+
+			<!-- Barra Lateral de Navegação -->
+			<div class="sidebar">
+				<div class="user-mini-card">
+					<div class="user-avatar-wrap">
+						<img id="sideAvatar" src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80" alt="Avatar">
+						<div id="sideOnlineDot" class="online-dot" title="Você está Online"></div>
+					</div>
+					<h3 id="sideName" style="font-size: 16px; font-weight: 700;"></h3>
+					<p id="sideUsername" style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;"></p>
+					<div style="display: flex; gap: 6px; justify-content: center; margin-top: 8px;">
+						<span class="badge-ap">AP</span>
+						<span class="badge-vip" style="position: static;">VIP</span>
+					</div>
+				</div>
+
+				<div class="nav-menu">
+					<button class="nav-item active" onclick="switchTab('messages')">
+						<span>💬 Caixa de Mensagens</span>
+						<span id="unreadMessagesCount" class="badge-notif" style="display: none;">1</span>
+					</button>
+					<button class="nav-item" onclick="switchTab('activity')">
+						<span>🔔 Atividade & Avisos</span>
+					</button>
+					<button class="nav-item" onclick="switchTab('search')">
+						<span>🔍 Pesquisar Usuário</span>
+					</button>
+					<button class="nav-item" onclick="switchTab('rooms')">
+						<span>🎪 Salas de Chat</span>
+					</button>
+					<button class="nav-item" onclick="switchTab('friends')">
+						<span>👥 Meus Amigos</span>
+					</button>
+				</div>
+
+				<button id="btnLogout" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 10px; border-radius: 10px; font-weight: 600; cursor: pointer; margin-top: auto;">
+					Sair da Conta
+				</button>
+			</div>
+
+			<!-- Painel de Conteúdo das Abas -->
+			<div class="main-content">
+
+				<!-- =========================================================
+				     ABA 1: CAIXA DE MENSAGENS REAL (DE ACORDO COM A IMAGEM 1)
+				     ========================================================= -->
+				<div id="tab-messages" class="tab-content active">
+					<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+						<div>
+							<h2 style="font-size: 20px; font-weight: 800;">Caixa de Mensagens</h2>
+							<p style="font-size: 12.5px; color: var(--text-secondary); margin-top: 2px;">
+								Bate-papo em tempo real com indicador de presença online (bolinha verde) e histórico
+							</p>
+						</div>
+						<div style="display: flex; gap: 8px;">
+							<button class="tag-btn" onclick="simulateIncomingMessage()">⚡ Receber Mensagem</button>
+							<button class="tag-btn" onclick="toggleSelectedUserStatus()">🟢 Alternar Status</button>
+						</div>
+					</div>
+
+					<div class="messages-container">
+						<!-- Lista de Conversas (Esquerda) -->
+						<div class="conversations-sidebar">
+							<div class="conversations-header">
+								<h3><span>💬</span> <span>CONVERSAS</span></h3>
+								<span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">IMVU Direct</span>
+							</div>
+
+							<div id="conversationsList" class="conversations-list">
+								<!-- Preenchido via JavaScript dinamicamente -->
+								<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Carregando mensagens...</div>
+							</div>
+						</div>
+
+						<!-- Janela de Conversa Ativa (Direita) -->
+						<div class="chat-window">
+							<div class="chat-header">
+								<div class="chat-header-user">
+									<div class="conv-avatar-wrap">
+										<img id="chatHeaderAvatar" src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80" alt="Avatar">
+										<div id="chatHeaderOnlineDot" class="conv-online-dot"></div>
+									</div>
+									<div>
+										<div id="chatHeaderName" style="font-size: 15px; font-weight: 700; color: white;">BELLINDA[]</div>
+										<div id="chatHeaderStatus" class="chat-status-pill">
+											<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--online-green);"></span>
+											<span>Online agora</span>
+										</div>
+									</div>
+								</div>
+
+								<div style="display: flex; gap: 8px;">
+									<button class="tag-btn" onclick="openProfileFromChat()" style="padding: 6px 12px; font-size: 11.5px;">👤 Ver Perfil</button>
+									<button class="tag-btn" onclick="inviteUserToRoom()" style="padding: 6px 12px; font-size: 11.5px;">🎪 Convidar</button>
+								</div>
+							</div>
+
+							<!-- Histórico de Balões de Mensagens -->
+							<div id="chatMessagesBody" class="chat-messages-body">
+								<!-- Mensagens carregadas via JS -->
+							</div>
+
+							<!-- Barra de Envio de Mensagem -->
+							<form id="chatSendForm" class="chat-input-bar" onsubmit="event.preventDefault(); sendMessage();">
+								<input type="text" id="chatInputText" placeholder="Escreva uma mensagem para o avatar..." autocomplete="off">
+								<button type="submit" class="btn-send-msg">Enviar ✉️</button>
+							</form>
+						</div>
+					</div>
+				</div>
+
+				<!-- =========================================================
+				     ABA 2: ATIVIDADE & NOTIFICAÇÕES (DE ACORDO COM A IMAGEM 2)
+				     ========================================================= -->
+				<div id="tab-activity" class="tab-content">
+					<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+						<div>
+							<h2 style="font-size: 20px; font-weight: 800;">Atividade & Avisos de Presença</h2>
+							<p style="font-size: 12.5px; color: var(--text-secondary); margin-top: 2px;">
+								Pedidos de amizade, convites para salas ao vivo [JOIN] e alertas de status online
+							</p>
+						</div>
+						<button class="tag-btn active" onclick="loadActivitiesFeed()">🔄 Atualizar Feed</button>
+					</div>
+
+					<div class="activity-panel-wrap">
+						<div class="activity-panel-header">
+							<div class="activity-title">ACTIVITY</div>
+							<button class="btn-close-activity" onclick="switchTab('messages')">✕</button>
+						</div>
+
+						<div id="activityFeedContent">
+							Carregando atividades...
+						</div>
+					</div>
+				</div>
+
+				<!-- =========================================================
+				     ABA 3: PESQUISA DE USUÁRIO (DE ACORDO COM A IMAGEM 3)
+				     ========================================================= -->
+				<div id="tab-search" class="tab-content">
+					<div style="margin-bottom: 20px;">
+						<h2 style="font-size: 20px; font-weight: 800;">Pesquisar Usuário no IMVU</h2>
+						<p style="font-size: 12.5px; color: var(--text-secondary); margin-top: 2px;">
+							Cards de usuários com fotos de perfil 3D reais, selo AP (Access Pass), país e perfil em detalhes
+						</p>
+					</div>
+
+					<!-- Painel Embutido de Perfil em Detalhes (NÃO SOBREPOSTO NA TELA) -->
+					<div id="embeddedProfileCard" class="embedded-profile-card" style="display: none;">
+						<div class="embedded-profile-banner">
+							<button class="btn-close-embedded" onclick="closeEmbeddedProfile()">✕ Fechar Detalhes</button>
+						</div>
+						<div class="embedded-profile-content">
+							<div class="embedded-avatar-row">
+								<div class="embedded-avatar-wrapper">
+									<img id="embAvatar" class="embedded-avatar-img" src="/assets/images/gabi.jpg" alt="Avatar">
+								</div>
+								<div class="embedded-badges-group">
+									<span id="embApBadge" class="badge-pill-ap">AP Access Pass</span>
+									<span id="embVipBadge" class="badge-pill-vip">⭐ VIP</span>
+									<span id="embCreatorBadge" class="badge-pill-creator">🎨 Creator</span>
+								</div>
+							</div>
+
+							<div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+								<div>
+									<h3 id="embDisplayName" style="font-size: 20px; font-weight: 800; color: white; display: flex; align-items: center; gap: 8px;">
+										Gabi 🥂
+									</h3>
+									<div id="embHandle" style="font-size: 13px; color: #94a3b8; margin-top: 2px;">@Guest_Millervidah000</div>
+									<div id="embLocation" style="font-size: 12px; color: var(--accent-pink); font-weight: 700; margin-top: 4px;">
+										📍 Global • Idade: 23 • Feminino
+									</div>
+								</div>
+
+								<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+									<button id="embBtnChat" class="btn-primary" style="padding: 8px 16px; font-size: 12.5px; border-radius: 8px;">
+										💬 Enviar Mensagem
+									</button>
+									<button class="btn-header-action" onclick="inviteCurrentUserToRoom()" style="font-size: 12px;">
+										🎪 Convidar para Room
+									</button>
+									<a id="embImvuWebLink" href="https://pt.imvu.com/next/av/Guest_Millervidah000/" target="_blank" rel="noopener noreferrer" class="btn-header-action" style="font-size: 12px; text-decoration: none;">
+										🌐 Ver Perfil IMVU ↗
+									</a>
+								</div>
+							</div>
+
+							<div class="embedded-profile-details">
+								<div>
+									<div style="font-size: 11.5px; font-weight: 800; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px;">Biografia & Apresentação</div>
+									<div id="embBio" class="embedded-bio-box">
+										Perfil oficial de @Guest_Millervidah000 no IMVU. Vibes tropicais e estilo único.
+									</div>
+
+									<div class="embedded-link-row">
+										<div style="flex: 1; min-width: 0;">
+											<div style="font-size: 10.5px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Link Oficial do Perfil IMVU</div>
+											<div id="embProfileUrlText" class="embedded-link-text">https://pt.imvu.com/next/av/Guest_Millervidah000/</div>
+										</div>
+										<button class="btn-header-action" onclick="copyEmbeddedProfileUrl()" style="font-size: 11px; padding: 6px 12px;">
+											📋 Copiar Link
+										</button>
+									</div>
+								</div>
+
+								<div>
+									<div style="font-size: 11.5px; font-weight: 800; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px;">Estatísticas da Conta</div>
+									<div class="embedded-stats-grid">
+										<div class="embedded-stat-box">
+											<div id="embFriendsCount" class="embedded-stat-value">48</div>
+											<div class="embedded-stat-label">Amigos</div>
+										</div>
+										<div class="embedded-stat-box">
+											<div id="embRoomsCount" class="embedded-stat-value">2</div>
+											<div class="embedded-stat-label">Salas</div>
+										</div>
+										<div class="embedded-stat-box">
+											<div id="embRegistered" class="embedded-stat-value" style="font-size: 12px; margin-top: 3px;">Maio 2021</div>
+											<div class="embedded-stat-label">Membro</div>
+										</div>
+									</div>
+
+									<div style="margin-top: 14px; background: #171920; border: 1px solid rgba(255, 255, 255, 0.05); padding: 12px 14px; border-radius: 10px;">
+										<div style="font-size: 11px; font-weight: 700; color: #94a3b8; margin-bottom: 6px;">Status de Presença no Jogo:</div>
+										<div id="embOnlineStatusBadge" style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #22c55e;">
+											🟢 Conectado e Online no IMVU
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Barra de Busca -->
+					<div class="search-header-bar">
+						<input type="text" id="userSearchInput" placeholder="Pesquisar por nome ou @handle (ex: Gabi, Guest_Kngold, Brenin, Louise, Ale...)" onkeyup="if(event.key==='Enter') executeUserSearch()">
+						<button class="btn-primary btn-search-trigger" onclick="executeUserSearch()">Buscar 🔎</button>
+					</div>
+
+					<!-- Filtros Rápidos -->
+					<div class="search-tags-row">
+						<button class="tag-btn active" onclick="filterSearchTag('all')">Todos</button>
+						<button class="tag-btn" onclick="filterSearchTag('ap')">Selo AP</button>
+						<button class="tag-btn" onclick="filterSearchTag('online')">🟢 Apenas Online</button>
+						<button class="tag-btn" onclick="filterSearchTag('brazil')">🇧🇷 Brasil</button>
+						<button class="tag-btn" onclick="filterSearchTag('usa')">🇺🇸 Estados Unidos</button>
+					</div>
+
+					<!-- Grade de Cards de Usuários Fiel à Imagem 3 -->
+					<div id="usersGrid" class="imvu-users-grid">
+						Carregando catálogo de usuários com fotos reais...
+					</div>
+				</div>
+
+				<!-- =========================================================
+				     ABA 4: SALAS DE CHAT (COM IMAGEM, OCUPANTES, FAVORITAR, COPIAR ID E ENTRADA REAL)
+				     ========================================================= -->
+				<div id="tab-rooms" class="tab-content">
+					
+					<!-- 1. CATÁLOGO GERAL DE SALAS -->
+					<div id="roomsCatalogView">
+						<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+							<div>
+								<h2 style="font-size: 20px; font-weight: 800;">Salas de Chat 3D no IMVU</h2>
+								<p style="font-size: 12.5px; color: var(--text-secondary); margin-top: 2px;">
+									Fotos reais das salas, quem está usando (occupancy), favoritar e entrar ao vivo
+								</p>
+							</div>
+							<div style="display: flex; gap: 8px;">
+								<button id="btnAllRooms" class="tag-btn active" onclick="filterRoomsMode('all')">🌍 Todas as Salas</button>
+								<button id="btnFavRooms" class="tag-btn" onclick="filterRoomsMode('fav')">⭐ Favoritas</button>
+							</div>
+						</div>
+
+						<div class="search-header-bar">
+							<input type="text" id="roomSearchInput" placeholder="Pesquise por Nome da Sala ou ID (ex: A SALA VERMELHA, room-252190496-52, In the woods)..." onkeyup="if(event.key==='Enter') searchRooms()">
+							<button class="btn-primary btn-search-trigger" onclick="searchRooms()">Buscar Sala</button>
+						</div>
+
+						<div id="roomsGrid" class="rooms-grid">
+							Carregando salas...
+						</div>
+					</div>
+
+					<!-- 2. EXPERIÊNCIA DE SALA AO VIVO INTERATIVA (IN-ROOM LIVE VIEW) -->
+					<div id="activeRoomView" class="active-room-container" style="display: none;">
+						<div class="active-room-topbar">
+							<div class="active-room-title-wrap">
+								<button class="btn-header-action" onclick="leaveCurrentRoom()" title="Voltar ao Catálogo de Salas">
+									← Voltar
+								</button>
+								<div>
+									<h2 id="liveRoomName" style="font-size: 18px; font-weight: 800; color: white;">A SALA VERMELHA</h2>
+									<div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+										<img id="liveRoomHostAvatar" src="/assets/images/brenin.jpg" style="width: 18px; height: 18px; border-radius: 50%;" alt="Host">
+										<span id="liveRoomHostName" style="font-size: 12px; color: #94a3b8;">Hosted by Brenin</span>
+										<span style="color: rgba(255,255,255,0.2);">•</span>
+										<span id="liveRoomIdPill" style="font-family: monospace; font-size: 11px; color: var(--accent-pink);">room-252190496-52</span>
+									</div>
+								</div>
+							</div>
+
+							<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+								<!-- Botão Copiar ID da Room -->
+								<button id="btnCopyActiveRoomId" class="btn-header-action" onclick="copyCurrentActiveRoomId()" style="background: rgba(124, 58, 237, 0.2); border-color: rgba(124, 58, 237, 0.4); color: #c084fc;" title="Copiar ID real da room">
+									📋 <span>Copiar ID</span>
+								</button>
+
+								<!-- Botão Favoritar Sala -->
+								<button id="btnFavActiveRoom" class="btn-header-action" onclick="toggleActiveRoomFavorite()" style="background: rgba(251, 191, 36, 0.15); border-color: rgba(251, 191, 36, 0.3); color: #fbbf24;">
+									⭐ <span id="favActiveRoomText">Favoritar</span>
+								</button>
+
+								<!-- Botão Ver Room no IMVU (Link Direto) -->
+								<a id="linkImvuActiveRoom" href="https://www.imvu.com/next/chat/room-252190496-52/" target="_blank" rel="noopener noreferrer" class="btn-header-action" style="background: rgba(236, 72, 153, 0.2); border-color: rgba(236, 72, 153, 0.4); color: #f472b6; text-decoration: none;" title="Abrir sala no IMVU oficial">
+									🌐 <span>Ver Room IMVU ↗</span>
+								</a>
+
+								<button class="btn-header-action" onclick="leaveCurrentRoom()" style="background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.4); color: #f87171;">
+									🚪 <span>Sair da Sala</span>
+								</button>
+							</div>
+						</div>
+
+						<div class="active-room-hero">
+							<div>
+								<div class="room-stage-preview">
+									<img id="liveRoomHeroImage" src="/assets/images/red_room.jpg" alt="Sala 3D">
+									<div class="room-stage-overlay-info">
+										<div style="display: flex; justify-content: space-between; align-items: center;">
+											<span id="liveRoomBadgeLang" style="background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.2); font-size: 11px; padding: 3px 8px; border-radius: 12px; color: #cbd5e1;">Portuguese</span>
+											<span style="background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; color: #86efac; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 12px;">🔴 SALA AO VIVO</span>
+										</div>
+									</div>
+								</div>
+
+								<!-- Seção OCCUPANCY (Idêntica à Imagem 6) -->
+								<div class="room-occupancy-section">
+									<div class="occupancy-header-title">
+										<span>OCCUPANCY (<span id="occupancyCountNum">0</span>/<span id="occupancyCapacityNum">3</span>)</span>
+										<span style="font-size: 10.5px; color: #94a3b8; text-transform: none; font-weight: 400;">Quem está na sala agora</span>
+									</div>
+
+									<div id="occupancySlotsRow" class="occupancy-slots-row">
+										<!-- Renderizado dinamicamente com slots circulares tracejados dourados -->
+									</div>
+								</div>
+
+								<div style="margin-top: 14px; background: #14151b; border: 1px solid rgba(255, 255, 255, 0.05); padding: 12px 16px; border-radius: 10px;">
+									<div style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Tags da Sala:</div>
+									<p id="liveRoomTagsText" style="font-size: 12px; color: #cbd5e1; line-height: 1.5; font-style: italic;">
+										| kiss | beijo | sexy | climax | | quente | quarto | motel | poses | casal | couple | photo | room |
+									</p>
+								</div>
+							</div>
+
+							<!-- Bate-papo da Sala (Live Room Chat) -->
+							<div class="active-room-chat-box">
+								<div style="padding: 12px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 12px; font-weight: 800; letter-spacing: 1px; color: #e2e8f0; text-transform: uppercase;">
+									💬 Bate-Papo da Sala
+								</div>
+								
+								<div id="activeRoomChatLog" class="active-room-chat-log">
+									<!-- Mensagens da sala -->
+								</div>
+
+								<form id="roomChatForm" onsubmit="handleSendRoomMessage(event)" style="padding: 12px 16px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; gap: 8px; background: #121317;">
+									<input type="text" id="roomChatInput" placeholder="Converse na sala..." style="flex: 1; background: #1c1e24; border: 1px solid rgba(255, 255, 255, 0.1); padding: 10px 14px; border-radius: 20px; font-size: 13px; color: white;" required>
+									<button type="submit" class="btn-primary" style="width: auto; padding: 10px 18px; border-radius: 20px; font-size: 12.5px;">Enviar</button>
+								</form>
+							</div>
+						</div>
+					</div>
+
+				</div>
+
+				<!-- =========================================================
+				     ABA 5: MEUS AMIGOS
+				     ========================================================= -->
+				<div id="tab-friends" class="tab-content">
+					<h2 style="font-size: 20px; font-weight: 800; margin-bottom: 16px;">Meus Amigos</h2>
+					<div id="friendsGrid" class="imvu-users-grid">
+						Carregando lista de amigos...
+					</div>
+				</div>
+
+			</div>
+		</div>
+
+	</div>
+
+	<!-- MODAL DE PERFIL COMPLETO DO USUÁRIO -->
+	<div id="profileModal" class="modal-backdrop" onclick="if(event.target===this) closeProfileModal()">
+		<div class="modal-card">
+			<div class="modal-banner"></div>
+			<div class="modal-avatar-area">
+				<img id="modalAvatar" src="" alt="Avatar">
+				<div style="display: flex; gap: 6px;">
+					<span id="modalApBadge" class="badge-ap" style="position: static;">AP</span>
+					<span id="modalVipBadge" class="badge-vip" style="position: static;">VIP</span>
+				</div>
+			</div>
+			<div class="modal-body">
+				<h3 id="modalDisplayName" style="font-size: 18px; font-weight: 800; color: white;"></h3>
+				<p id="modalHandle" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;"></p>
+				<p id="modalLocation" style="font-size: 12px; color: var(--accent-pink); font-weight: 600; margin-bottom: 14px;"></p>
+				
+				<div style="background: rgba(15, 20, 30, 0.6); padding: 12px 14px; border-radius: 10px; margin-bottom: 16px;">
+					<p id="modalBio" style="font-size: 13px; color: #cbd5e1; line-height: 1.4;"></p>
+				</div>
+
+				<div style="display: flex; gap: 10px;">
+					<button id="modalBtnChat" class="btn-primary" style="flex: 1;">💬 Abrir Chat</button>
+					<button class="btn-header-action" onclick="closeProfileModal()">Fechar</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		// Estado da aplicação
+		let activeUser = localStorage.getItem('imvu_active_user') || '';
+		let conversations = [];
+		let currentChatUser = 'Bellinda_vip';
+		let cachedUsers = [];
+		let activeFilterTag = 'all';
+
+		// Sons sintetizados via Web Audio API (nunca falham e não dependem de URLs externas)
+		const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+		function playNotificationSound(type = 'msg') {
+			try {
+				if (audioCtx.state === 'suspended') audioCtx.resume();
+				const osc = audioCtx.createOscillator();
+				const gain = audioCtx.createGain();
+				osc.connect(gain);
+				gain.connect(audioCtx.destination);
+
+				if (type === 'msg') {
+					// Duplo tom agradável para mensagem
+					osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+					osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1); // A5
+					gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+					gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+					osc.start();
+					osc.stop(audioCtx.currentTime + 0.35);
+				} else if (type === 'online') {
+					// Tom ascendente para amigo online
+					osc.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
+					osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.12); // E5
+					gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+					gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+					osc.start();
+					osc.stop(audioCtx.currentTime + 0.4);
+				}
+			} catch (e) {}
+		}
+
+		// Função para exibir Toast de Notificação ao Vivo
+		function showLiveToast(title, message, avatarUrl, type = 'msg', onClick = null) {
+			playNotificationSound(type === 'online' ? 'online' : 'msg');
+
+			const container = document.getElementById('toastContainer');
+			const toast = document.createElement('div');
+			toast.className = `toast-item ${type === 'online' ? 'online' : ''}`;
+			
+			const avatar = avatarUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&q=80';
+
+			toast.innerHTML = `
+				<img class="toast-avatar" src="${avatar}" alt="Avatar">
+				<div class="toast-info">
+					<div class="toast-title">${title}</div>
+					<div class="toast-msg">${message}</div>
+				</div>
+			`;
+
+			toast.onclick = () => {
+				if (onClick) onClick();
+				toast.remove();
+			};
+
+			container.appendChild(toast);
+
+			setTimeout(() => {
+				toast.style.opacity = '0';
+				toast.style.transform = 'translateX(100%)';
+				toast.style.transition = 'all 0.3s ease';
+				setTimeout(() => toast.remove(), 300);
+			}, 5000);
+		}
+
+		// Inicialização
+		window.addEventListener('DOMContentLoaded', () => {
+			if (activeUser) {
+				initLoggedInUser(activeUser);
+			}
+
+			// Iniciar verificação periódica de mensagens e notificações
+			setInterval(checkLiveUpdates, 8000);
+		});
+
+		// Login
+		const loginForm = document.getElementById('loginForm');
+		const statusBox = document.getElementById('statusBox');
+
+		function showStatus(msg, isError = false) {
+			statusBox.textContent = msg;
+			statusBox.className = `status-box ${isError ? 'error' : 'success'}`;
+			statusBox.style.display = 'block';
+		}
+
+		loginForm.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			const username = document.getElementById('username').value.trim();
+			const password = document.getElementById('password').value;
+			const twoFactorCode = document.getElementById('twoFactorCode').value.trim();
+
+			document.getElementById('btnSubmit').disabled = true;
+
+			try {
+				const response = await fetch('/api/login', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ username, password, twoFactorCode })
+				});
+
+				const result = await response.json();
+				if (!result.success) throw new Error(result.message);
+
+				activeUser = result.data.username;
+				localStorage.setItem('imvu_active_user', activeUser);
+
+				initLoggedInUser(activeUser, result.data);
+			} catch (err) {
+				showStatus(err.message, true);
+			} finally {
+				document.getElementById('btnSubmit').disabled = false;
+			}
+		});
+
+		function initLoggedInUser(username, userData = null) {
+			document.getElementById('loginCard').style.display = 'none';
+			document.getElementById('dashboardLayout').style.display = 'grid';
+
+			document.getElementById('sideName').textContent = userData?.displayName || username;
+			document.getElementById('sideUsername').textContent = `@${username}`;
+			if (userData?.avatarImage) {
+				document.getElementById('sideAvatar').src = userData.avatarImage;
+			}
+
+			loadConversations();
+			loadActivitiesFeed();
+			loadUsersCatalog();
+		}
+
+		// Troca de Abas
+		function switchTab(tabName) {
+			document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
+			document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+
+			const activeBtn = Array.from(document.querySelectorAll('.nav-menu button')).find(b => b.getAttribute('onclick')?.includes(tabName));
+			if (activeBtn) activeBtn.classList.add('active');
+
+			const targetTab = document.getElementById(`tab-${tabName}`);
+			if (targetTab) targetTab.classList.add('active');
+
+			if (tabName === 'messages') loadConversations();
+			if (tabName === 'activity') loadActivitiesFeed();
+			if (tabName === 'search') loadUsersCatalog();
+			if (tabName === 'rooms') loadRooms();
+			if (tabName === 'friends') loadFriends();
+		}
+
+		// =========================================================
+		// 1. CAIXA DE MENSAGENS REAL (DE ACORDO COM A IMAGEM 1)
+		// =========================================================
+		async function loadConversations() {
+			const container = document.getElementById('conversationsList');
+			try {
+				const res = await fetch('/api/conversations', { headers: { 'x-active-user': activeUser } });
+				const { data } = await res.json();
+				conversations = data || [];
+
+				let unreadCount = 0;
+
+				if (conversations.length === 0) {
+					container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Nenhuma conversa encontrada.</div>';
+					return;
+				}
+
+				container.innerHTML = conversations.map(c => {
+					if (c.lastMessage?.unread) unreadCount++;
+					const isSelected = c.user.username.toLowerCase() === currentChatUser.toLowerCase();
+					
+					// Bolinha verde no canto do avatar se a pessoa estiver online (Imagem 1)
+					const onlineIndicator = c.user.isOnline 
+						? `<div class="conv-online-dot" title="Online no IMVU"></div>` 
+						: '';
+
+					const unreadDot = c.lastMessage?.unread 
+						? `<div class="conv-unread-badge" title="Mensagem nova"></div>` 
+						: '';
+
+					return `
+						<div class="conversation-item ${isSelected ? 'active' : ''}" onclick="selectConversation('${c.user.username}')">
+							<div class="conv-avatar-wrap">
+								<img src="${c.user.avatarImage}" alt="${c.user.displayName}">
+								${onlineIndicator}
+							</div>
+							<div class="conv-info">
+								<div class="conv-top-row">
+									<span class="conv-username">${c.user.displayName}</span>
+									<span class="conv-timestamp">${c.lastMessage?.timestamp || ''}</span>
+								</div>
+								<div class="conv-snippet" style="${c.lastMessage?.unread ? 'font-weight: 700; color: #ffffff;' : ''}">
+									${c.lastMessage?.text || 'Sem mensagens recentes'}
+								</div>
+							</div>
+							${unreadDot}
+						</div>
+					`;
+				}).join('');
+
+				const unreadBadge = document.getElementById('unreadMessagesCount');
+				if (unreadCount > 0) {
+					unreadBadge.textContent = unreadCount;
+					unreadBadge.style.display = 'inline-block';
+				} else {
+					unreadBadge.style.display = 'none';
+				}
+
+				// Carregar histórico da conversa selecionada
+				loadChatMessages(currentChatUser);
+			} catch (err) {
+				container.innerHTML = '<div style="padding: 20px; text-align: center; color: #ef4444; font-size: 13px;">Erro ao carregar mensagens.</div>';
+			}
+		}
+
+		async function selectConversation(username) {
+			currentChatUser = username;
+			document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
+			loadConversations();
+		}
+
+		async function loadChatMessages(username) {
+			const bodyContainer = document.getElementById('chatMessagesBody');
+			bodyContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 13px;">Carregando histórico...</div>';
+
+			try {
+				const res = await fetch(`/api/conversations/${encodeURIComponent(username)}/messages`, {
+					headers: { 'x-active-user': activeUser }
+				});
+				const { data, user } = await res.json();
+
+				// Atualizar cabeçalho do Chat
+				document.getElementById('chatHeaderName').textContent = user?.displayName || username;
+				document.getElementById('chatHeaderAvatar').src = user?.avatarImage || '/assets/images/gabi.jpg';
+				
+				const statusPill = document.getElementById('chatHeaderStatus');
+				const dotEl = document.getElementById('chatHeaderOnlineDot');
+
+				if (user?.isOnline) {
+					statusPill.className = 'chat-status-pill';
+					statusPill.innerHTML = `<span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--online-green);"></span> <span>Online agora</span>`;
+					dotEl.style.display = 'block';
+				} else {
+					statusPill.className = 'chat-status-pill offline';
+					statusPill.innerHTML = `<span>⚪ Visto por último ontem</span>`;
+					dotEl.style.display = 'none';
+				}
+
+				if (!data || data.length === 0) {
+					bodyContainer.innerHTML = `
+						<div style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+							<div style="font-size: 32px; margin-bottom: 8px;">👋</div>
+							<div style="font-size: 14px; font-weight: 600; color: white;">Comece a conversar com ${user?.displayName || username}</div>
+							<div style="font-size: 12px; margin-top: 4px;">Envie uma mensagem abaixo para iniciar o bate-papo real</div>
+						</div>
+					`;
+					return;
+				}
+
+				bodyContainer.innerHTML = data.map(m => `
+					<div class="msg-bubble-wrap ${m.isMine ? 'mine' : 'theirs'}">
+						<div class="msg-bubble">${escapeHtml(m.text)}</div>
+						<div class="msg-meta">${m.timestamp}</div>
+					</div>
+				`).join('');
+
+				// Rolar até o final
+				bodyContainer.scrollTop = bodyContainer.scrollHeight;
+			} catch (err) {
+				bodyContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #ef4444;">Erro ao carregar mensagens.</div>';
+			}
+		}
+
+		async function sendMessage() {
+			const input = document.getElementById('chatInputText');
+			const text = input.value.trim();
+			if (!text) return;
+
+			input.value = '';
+
+			try {
+				const res = await fetch('/api/messages/send', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', 'x-active-user': activeUser },
+					body: JSON.stringify({ recipientUsername: currentChatUser, messageText: text })
+				});
+
+				const result = await res.json();
+				if (!result.success) throw new Error(result.message);
+
+				// Recarregar histórico e lista de conversas
+				await loadChatMessages(currentChatUser);
+				loadConversations();
+			} catch (err) {
+				showLiveToast('Erro de Mensagem', err.message, '/assets/images/gabi.jpg', 'offline');
+			}
+		}
+
+		// =========================================================
+		// 2. SIMULAÇÃO DE MENSAGEM RECEBIDA & AVISO ONLINE (IMAGEM 2)
+		// =========================================================
+		async function simulateIncomingMessage() {
+			try {
+				const res = await fetch('/api/simulate/incoming', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', 'x-active-user': activeUser },
+					body: JSON.stringify({ senderUsername: currentChatUser })
+				});
+				const result = await res.json();
+
+				// Exibir notificação Toast ao vivo com som e aviso
+				showLiveToast(
+					`💬 Nova mensagem de ${result.senderName || currentChatUser}`,
+					result.data.text,
+					'/assets/images/kngold.jpg',
+					'msg',
+					() => {
+						switchTab('messages');
+						selectConversation(currentChatUser);
+					}
+				);
+
+				// Atualizar lista e mensagens
+				loadConversations();
+				loadActivitiesFeed();
+			} catch (err) {
+				console.error(err);
+			}
+		}
+
+		async function toggleSelectedUserStatus() {
+			try {
+				const res = await fetch(`/api/users/${encodeURIComponent(currentChatUser)}/toggle-status`, {
+					method: 'POST',
+					headers: { 'x-active-user': activeUser }
+				});
+				const result = await res.json();
+
+				// Exibir Toast ao vivo de aviso de pessoa online/offline de acordo com a imagem
+				showLiveToast(
+					result.isOnline ? `🟢 Status Online` : `⚪ Status Offline`,
+					result.message,
+					'/assets/images/gabi.jpg',
+					result.isOnline ? 'online' : 'offline'
+				);
+
+				loadConversations();
+				loadActivitiesFeed();
+			} catch (err) {
+				console.error(err);
+			}
+		}
+
+		// =========================================================
+		// 3. PAINEL DE ATIVIDADES E NOTIFICAÇÕES (IMAGEM 2 - ACTIVITY)
+		// =========================================================
+		async function loadActivitiesFeed() {
+			const container = document.getElementById('activityFeedContent');
+			try {
+				const res = await fetch('/api/activities', { headers: { 'x-active-user': activeUser } });
+				const { data } = await res.json();
+
+				if (!data) return;
+
+				let html = '';
+
+				// Seção TODAY
+				if (data.today && data.today.length > 0) {
+					html += `<div class="activity-section-label">TODAY</div>`;
+					html += `<div class="activity-items-list">`;
+					data.today.forEach(act => {
+						html += renderActivityRow(act);
+					});
+					html += `</div>`;
+				}
+
+				// Seção YESTERDAY
+				if (data.yesterday && data.yesterday.length > 0) {
+					html += `<div class="activity-section-label">YESTERDAY</div>`;
+					html += `<div class="activity-items-list">`;
+					data.yesterday.forEach(act => {
+						html += renderActivityRow(act);
+					});
+					html += `</div>`;
+				}
+
+				container.innerHTML = html || '<div style="padding: 24px; text-align: center; color: var(--text-muted);">Nenhuma atividade recente.</div>';
+			} catch (err) {
+				container.innerHTML = '<div style="padding: 24px; text-align: center; color: #ef4444;">Erro ao carregar atividades.</div>';
+			}
+		}
+
+		function renderActivityRow(act) {
+			let actionArea = '';
+
+			// Se for convite para sala ao vivo, exibe o botão [JOIN] idêntico à imagem 2
+			if (act.type === 'room_invitation') {
+				actionArea = `
+					<button class="btn-activity-join" onclick="handleActivityAction('${act.id}', 'join_room', '${act.roomName}')">
+						JOIN
+					</button>
+				`;
+			} else if (act.type === 'friend_request') {
+				actionArea = `
+					<div class="activity-action-icon" title="Aceitar Amizade" onclick="handleActivityAction('${act.id}', 'accept_friend', '${act.user.displayName}')">
+						👥➕
+					</div>
+				`;
+			} else {
+				actionArea = `
+					<div class="activity-action-icon" title="Amigo conectado">
+						👥✔️
+					</div>
+				`;
+			}
+
+			const roomPart = act.roomName 
+				? `<br><strong>${escapeHtml(act.roomName)}</strong> ${act.roomBadge ? `<span style="border:1px solid #ffffff; font-size:9px; padding:1px 4px; font-weight:700; margin-left:4px;">${act.roomBadge}</span>` : ''}` 
+				: '';
+
+			return `
+				<div class="activity-row">
+					<img src="${act.user.avatar}" alt="${act.user.displayName}">
+					<div class="activity-content">
+						<div class="activity-user-name">${escapeHtml(act.user.displayName)}</div>
+						<div class="activity-desc">${act.actionText} ${roomPart}</div>
+						<div class="activity-time">${act.time}</div>
+					</div>
+					${actionArea}
+				</div>
+			`;
+		}
+
+		async function handleActivityAction(activityId, action, target) {
+			try {
+				const res = await fetch('/api/activities/action', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', 'x-active-user': activeUser },
+					body: JSON.stringify({ activityId, action, target })
+				});
+				const result = await res.json();
+				showLiveToast('Notificação IMVU', result.message, '/assets/images/kngold.jpg', 'msg');
+			} catch (err) {
+				showLiveToast('Erro', 'Falha na ação.', '/assets/images/gabi.jpg', 'offline');
+			}
+		}
+
+		function openActivityModal() {
+			switchTab('activity');
+		}
+
+		// =========================================================
+		// 4. PESQUISA DE USUÁRIO (DE ACORDO COM A IMAGEM 3)
+		// =========================================================
+		async function loadUsersCatalog(query = '') {
+			const container = document.getElementById('usersGrid');
+			container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-secondary);">Buscando perfis no IMVU...</div>';
+
+			try {
+				const url = query ? `/api/search/user?q=${encodeURIComponent(query)}` : '/api/search/user';
+				const res = await fetch(url, { headers: { 'x-active-user': activeUser } });
+				const { data } = await res.json();
+				cachedUsers = data || [];
+
+				renderUsersGrid(cachedUsers);
+			} catch (err) {
+				container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #ef4444;">Erro ao carregar usuários.</div>';
+			}
+		}
+
+		function renderUsersGrid(usersList) {
+			const container = document.getElementById('usersGrid');
+
+			let filtered = usersList;
+			if (activeFilterTag === 'ap') filtered = usersList.filter(u => u.isAp);
+			if (activeFilterTag === 'online') filtered = usersList.filter(u => u.isOnline);
+			if (activeFilterTag === 'brazil') filtered = usersList.filter(u => (u.location || '').toLowerCase().includes('brazil') || (u.country || '').toLowerCase().includes('brazil'));
+			if (activeFilterTag === 'usa') filtered = usersList.filter(u => (u.location || '').toLowerCase().includes('usa') || (u.country || '').toLowerCase().includes('usa'));
+
+			if (filtered.length === 0) {
+				container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-secondary);">Nenhum usuário encontrado com estes critérios.</div>';
+				return;
+			}
+
+			// Renderização idêntica à Imagem 3:
+			// Foto quadrada 3D real do IMVU, selo rosa AP no topo direito, texto escuro embaixo com Nome, @handle e Gênero/Localização
+			container.innerHTML = filtered.map(u => {
+				const apBadge = u.isAp ? `<div class="badge-ap">AP</div>` : '';
+				const locationText = u.gender ? `${u.gender}, ${u.location || u.country || 'Global'}` : (u.location || u.country || 'Global');
+				const realAvatar = u.avatarPortraitImage || u.avatarImage || '/assets/images/gabi.jpg';
+
+				return `
+					<div class="imvu-user-card">
+						<div class="user-card-image-wrap">
+							<img src="${realAvatar}" alt="${u.displayName}">
+							${apBadge}
+						</div>
+						<div class="user-card-meta">
+							<div class="user-card-displayname">${escapeHtml(u.displayName || u.username)}</div>
+							<div class="user-card-handle">@${escapeHtml(u.username)}</div>
+							<div class="user-card-location">${escapeHtml(locationText)}</div>
+						</div>
+						<div class="user-card-actions">
+							<button class="btn-card-action" onclick="startDirectChat('${u.username}')">💬 Chat</button>
+							<button class="btn-card-action" onclick="openUserProfileModal('${u.username}')">👤 Perfil</button>
+						</div>
+					</div>
+				`;
+			}).join('');
+		}
+
+		function executeUserSearch() {
+			const q = document.getElementById('userSearchInput').value.trim();
+			loadUsersCatalog(q);
+		}
+
+		function filterSearchTag(tag) {
+			activeFilterTag = tag;
+			document.querySelectorAll('.search-tags-row .tag-btn').forEach(b => b.classList.remove('active'));
+			event.target.classList.add('active');
+			renderUsersGrid(cachedUsers);
+		}
+
+		function startDirectChat(username) {
+			currentChatUser = username;
+			switchTab('messages');
+			selectConversation(username);
+		}
+
+		// =========================================================
+		// PAINEL EMBUTIDO DE PERFIL DETALHADO (NÃO SOBREPOSTO NA TELA)
+		// =========================================================
+		let currentViewingProfileUser = null;
+
+		async function openUserProfileModal(username) {
+			try {
+				switchTab('search');
+
+				const res = await fetch(`/api/user/profile/${encodeURIComponent(username)}`, {
+					headers: { 'x-active-user': activeUser }
+				});
+				const { data } = await res.json();
+				if (!data) return;
+
+				currentViewingProfileUser = data;
+
+				// Preencher Dados Detalhados
+				const avatarUrl = data.avatarPortraitImage || data.avatarImage || '/assets/images/gabi.jpg';
+				document.getElementById('embAvatar').src = avatarUrl;
+				document.getElementById('embDisplayName').innerHTML = `${escapeHtml(data.displayName || data.username)} ${data.isOnline ? '<span style="font-size:12px; color:#22c55e; font-weight:600;">(Online)</span>' : '<span style="font-size:12px; color:#94a3b8; font-weight:400;">(Offline)</span>'}`;
+				document.getElementById('embHandle').textContent = `@${data.username}`;
+				document.getElementById('embLocation').textContent = `📍 ${data.country || 'Global'} • Idade: ${data.age || '22'} • ${data.gender || 'Avatar 3D'}`;
+				document.getElementById('embBio').textContent = `"${data.bio || `Perfil oficial de @${data.username} no IMVU.`}"`;
+				
+				// Badges
+				document.getElementById('embApBadge').style.display = data.isAp ? 'inline-block' : 'none';
+				document.getElementById('embVipBadge').style.display = data.isVip ? 'inline-block' : 'none';
+				document.getElementById('embCreatorBadge').style.display = data.isCreator ? 'inline-block' : 'none';
+
+				// Links e Stats
+				const profileUrl = data.profileUrl || `https://pt.imvu.com/next/av/${data.username}/`;
+				document.getElementById('embProfileUrlText').textContent = profileUrl;
+				document.getElementById('embImvuWebLink').href = profileUrl;
+
+				document.getElementById('embFriendsCount').textContent = data.friendsCount || '48';
+				document.getElementById('embRoomsCount').textContent = data.roomsCount || '2';
+				document.getElementById('embRegistered').textContent = data.registeredDate || 'Maio 2021';
+
+				const statusBadge = document.getElementById('embOnlineStatusBadge');
+				if (data.isOnline) {
+					statusBadge.style.color = '#22c55e';
+					statusBadge.innerHTML = '🟢 Conectado e Online no IMVU';
+				} else {
+					statusBadge.style.color = '#94a3b8';
+					statusBadge.innerHTML = '⚪ Desconectado / Visto por último';
+				}
+
+				// Configurar Botão de Chat
+				document.getElementById('embBtnChat').onclick = () => {
+					startDirectChat(data.username);
+				};
+
+				// Exibir Painel Embutido
+				const card = document.getElementById('embeddedProfileCard');
+				card.style.display = 'block';
+				card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+			} catch (err) {
+				showLiveToast('Erro', 'Não foi possível carregar dados do perfil.', '/assets/images/gabi.jpg', 'offline');
+			}
+		}
+
+		function closeEmbeddedProfile() {
+			const card = document.getElementById('embeddedProfileCard');
+			card.style.display = 'none';
+		}
+
+		function copyEmbeddedProfileUrl() {
+			if (!currentViewingProfileUser) return;
+			const url = currentViewingProfileUser.profileUrl || `https://pt.imvu.com/next/av/${currentViewingProfileUser.username}/`;
+			navigator.clipboard.writeText(url).then(() => {
+				showLiveToast('📋 Link Copiado!', `Link do perfil IMVU copiado: ${url}`, currentViewingProfileUser.avatarImage || '/assets/images/gabi.jpg', 'msg');
+			}).catch(() => {
+				showLiveToast('📋 Link', url, '/assets/images/gabi.jpg', 'msg');
+			});
+		}
+
+		function openProfileFromChat() {
+			openUserProfileModal(currentChatUser);
+		}
+
+		function inviteCurrentUserToRoom() {
+			const target = currentViewingProfileUser ? currentViewingProfileUser.displayName || currentViewingProfileUser.username : currentChatUser;
+			showLiveToast('🎪 Convite Enviado', `Convite para a sala "A SALA VERMELHA" enviado para ${target}!`, '/assets/images/red_room.jpg', 'msg');
+		}
+
+		// =========================================================
+		// 5. SALAS DE CHAT 3D: CATÁLOGO E EXPERIÊNCIA AO VIVO
+		// =========================================================
+		let currentRoomsMode = 'all';
+		let currentActiveRoomId = null;
+		let cachedRooms = [];
+
+		function filterRoomsMode(mode) {
+			currentRoomsMode = mode;
+			document.getElementById('btnAllRooms').classList.toggle('active', mode === 'all');
+			document.getElementById('btnFavRooms').classList.toggle('active', mode === 'fav');
+			loadRooms();
+		}
+
+		async function loadRooms(searchQuery = '') {
+			const container = document.getElementById('roomsGrid');
+			container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">Carregando salas 3D do IMVU...</div>';
+
+			try {
+				let url = '/api/rooms';
+				const params = new URLSearchParams();
+				if (searchQuery) params.append('q', searchQuery);
+				if (currentRoomsMode === 'fav') params.append('favoritesOnly', 'true');
+				if (params.toString()) url += `?${params.toString()}`;
+
+				const res = await fetch(url, { headers: { 'x-active-user': activeUser } });
+				const { data } = await res.json();
+				cachedRooms = data || [];
+
+				if (cachedRooms.length === 0) {
+					container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">
+						${currentRoomsMode === 'fav' ? 'Você ainda não favoritou nenhuma sala. Clique na estrela ⭐ de qualquer sala para adicioná-la aos favoritos!' : 'Nenhuma sala encontrada.'}
+					</div>`;
+					return;
+				}
+
+				container.innerHTML = cachedRooms.map(r => {
+					const isFav = !!r.isFavorite;
+					const occCount = (r.occupants && r.occupants.length) || 0;
+					const capacity = r.capacity || 3;
+					const occColor = occCount >= capacity ? '#ef4444' : '#86efac';
+					const hostName = (typeof r.host === 'object' ? (r.host.displayName || r.host.username) : r.host) || 'Brenin';
+					const hostAvatar = (typeof r.host === 'object' ? r.host.avatar : r.hostAvatar) || '/assets/images/brenin.jpg';
+					const imvuUrl = r.imvuUrl || r.imvuWebUrl || `https://www.imvu.com/next/chat/${r.id}/`;
+
+					return `
+						<div class="imvu-room-card">
+							<div class="room-card-media">
+								<img src="${r.image || '/assets/images/red_room.jpg'}" alt="${escapeHtml(r.name)}">
+								
+								<button class="room-badge-fav-toggle" onclick="event.stopPropagation(); toggleRoomFavorite('${r.id}', '${escapeHtml(r.name)}')" title="${isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}">
+									${isFav ? '★' : '☆'}
+								</button>
+
+								<div class="room-badge-occupancy" style="color: ${occColor};">
+									👥 ${occCount} / ${capacity}
+								</div>
+
+								<div class="room-card-host-badge">
+									<img src="${hostAvatar}" alt="${hostName}">
+									<span>Hosted by <strong>${escapeHtml(hostName)}</strong></span>
+								</div>
+							</div>
+
+							<div class="room-card-body">
+								<div class="room-card-id-tag">ID: ${escapeHtml(r.id)}</div>
+								<h3 class="room-card-title">${escapeHtml(r.name)}</h3>
+								<p class="room-card-desc">${escapeHtml(r.description || r.tags || 'Sala social 3D no IMVU.')}</p>
+
+								<div class="room-card-actions">
+									<button class="btn-room-enter" onclick="enterRoom('${r.id}')">
+										🚪 Entrar na Room
+									</button>
+									<button class="btn-room-sub" onclick="copyRoomId('${r.id}')" title="Copiar ID oficial da room">
+										📋 Copiar ID
+									</button>
+									<button class="btn-room-sub" onclick="toggleRoomFavorite('${r.id}', '${escapeHtml(r.name)}')">
+										${isFav ? '⭐ Favoritada' : '☆ Favoritar'}
+									</button>
+									<a href="${imvuUrl}" target="_blank" rel="noopener noreferrer" class="btn-room-sub" title="Abrir no site do IMVU">
+										🌐 Ver IMVU ↗
+									</a>
+								</div>
+							</div>
+						</div>
+					`;
+				}).join('');
+			} catch (err) {
+				container.innerHTML = '<div style="grid-column: 1/-1; color: #ef4444; padding: 30px; text-align: center;">Erro ao carregar salas.</div>';
+			}
+		}
+
+		function searchRooms() {
+			const q = document.getElementById('roomSearchInput').value.trim();
+			loadRooms(q);
+		}
+
+		// Copiar ID da Sala para Área de Transferência (De acordo com a solicitação)
+		function copyRoomId(roomId) {
+			navigator.clipboard.writeText(roomId).then(() => {
+				showLiveToast('📋 ID Copiado!', `ID da room copiado com sucesso: ${roomId}`, '/assets/images/red_room.jpg', 'msg');
+			}).catch(() => {
+				showLiveToast('📋 ID da Room', roomId, '/assets/images/red_room.jpg', 'msg');
+			});
+		}
+
+		function copyCurrentActiveRoomId() {
+			if (!currentActiveRoomId) return;
+			copyRoomId(currentActiveRoomId);
+		}
+
+		// Favoritar / Desfavoritar Sala
+		async function toggleRoomFavorite(roomId, roomName) {
+			try {
+				const res = await fetch('/api/rooms/favorite/toggle', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', 'x-active-user': activeUser },
+					body: JSON.stringify({ roomId })
+				});
+				const result = await res.json();
+				if (!result.success) throw new Error(result.message);
+
+				showLiveToast(
+					result.isFavorite ? '⭐ Adicionada aos Favoritos' : '⭐ Removida dos Favoritos',
+					`A sala "${roomName || roomId}" foi ${result.isFavorite ? 'salva nas suas favoritas!' : 'removida dos seus favoritos.'}`,
+					'/assets/images/red_room.jpg',
+					'msg'
+				);
+
+				// Atualizar visual se estiver no Live View
+				if (currentActiveRoomId === roomId) {
+					document.getElementById('favActiveRoomText').textContent = result.isFavorite ? 'Favoritada' : 'Favoritar';
+				}
+
+				loadRooms();
+			} catch (err) {
+				showLiveToast('Erro', 'Falha ao favoritar sala.', '/assets/images/gabi.jpg', 'offline');
+			}
+		}
+
+		function toggleActiveRoomFavorite() {
+			if (!currentActiveRoomId) return;
+			const room = cachedRooms.find(r => r.id === currentActiveRoomId);
+			toggleRoomFavorite(currentActiveRoomId, room ? room.name : currentActiveRoomId);
+		}
+
+		// =========================================================
+		// ENTRAR DE VERDADE NA ROOM (IN-ROOM LIVE VIEW)
+		// =========================================================
+		async function enterRoom(roomId) {
+			try {
+				const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/join`, {
+					method: 'POST',
+					headers: { 'x-active-user': activeUser }
+				});
+				const { data: room, message } = await res.json();
+				if (!room) throw new Error(message || 'Erro ao entrar na sala');
+
+				currentActiveRoomId = roomId;
+
+				const hostName = (typeof room.host === 'object' ? (room.host.displayName || room.host.username) : room.host) || 'Brenin';
+				const hostAvatar = (typeof room.host === 'object' ? room.host.avatar : room.hostAvatar) || '/assets/images/brenin.jpg';
+				const imvuUrl = room.imvuUrl || room.imvuWebUrl || `https://www.imvu.com/next/chat/${room.id}/`;
+
+				// Atualizar cabeçalho da sala ao vivo
+				document.getElementById('liveRoomName').textContent = room.name;
+				document.getElementById('liveRoomHostName').textContent = `Hosted by ${hostName}`;
+				document.getElementById('liveRoomHostAvatar').src = hostAvatar;
+				document.getElementById('liveRoomIdPill').textContent = room.id;
+				document.getElementById('liveRoomHeroImage').src = room.image || '/assets/images/red_room.jpg';
+				document.getElementById('liveRoomTagsText').textContent = room.tags || room.description || '| room | imvu | 3d | chat |';
+				document.getElementById('liveRoomBadgeLang').textContent = room.language || 'Portuguese';
+
+				// Links e Ações
+				document.getElementById('linkImvuActiveRoom').href = imvuUrl;
+				document.getElementById('favActiveRoomText').textContent = room.isFavorite ? 'Favoritada' : 'Favoritar';
+
+				// Renderizar Ocupação (Slots circulares tracejados idênticos à imagem 6)
+				renderRoomOccupancy(room);
+
+				// Carregar mensagens de chat da sala
+				renderRoomChatMessages(room.chatHistory || []);
+
+				// Alternar exibição de telas
+				document.getElementById('roomsCatalogView').style.display = 'none';
+				document.getElementById('activeRoomView').style.display = 'block';
+
+				showLiveToast('🚪 Entrou na Sala!', `Você entrou em "${room.name}" com sucesso!`, room.image || '/assets/images/red_room.jpg', 'online');
+			} catch (err) {
+				showLiveToast('Erro ao Entrar', err.message || 'Falha ao conectar na sala.', '/assets/images/red_room.jpg', 'offline');
+			}
+		}
+
+		function renderRoomOccupancy(room) {
+			const capacity = room.capacity || 3;
+			const occupants = room.occupants || [];
+
+			document.getElementById('occupancyCountNum').textContent = occupants.length;
+			document.getElementById('occupancyCapacityNum').textContent = capacity;
+
+			const rowContainer = document.getElementById('occupancySlotsRow');
+
+			let html = '';
+			for (let i = 0; i < capacity; i++) {
+				const occupant = occupants[i];
+				if (occupant) {
+					const occName = occupant.displayName || occupant.name || occupant.username || 'Membro';
+					const occAvatar = occupant.avatar || occupant.avatarImage || '/assets/images/gabi.jpg';
+					// Slot ocupado com avatar do usuário
+					html += `
+						<div class="occupancy-slot-circle occupied" title="${escapeHtml(occName)} (${occupant.role || 'Membro'})">
+							<img src="${occAvatar}" alt="${escapeHtml(occName)}">
+							<div class="slot-user-tooltip">${escapeHtml(occName)}</div>
+						</div>
+					`;
+				} else {
+					// Slot vazio com borda tracejada dourada (Imagem 6)
+					html += `
+						<div class="occupancy-slot-circle" title="Slot #${i + 1} livre">
+							<span style="font-size: 16px; color: #ca8a04;">+</span>
+							<span style="font-size: 9px; color: #eab308; font-weight: 700; margin-top: -2px;">SLOT ${i + 1}</span>
+							<div class="slot-user-tooltip" style="color: #64748b;">Vazio</div>
+						</div>
+					`;
+				}
+			}
+
+			rowContainer.innerHTML = html;
+		}
+
+		function renderRoomChatMessages(messages) {
+			const container = document.getElementById('activeRoomChatLog');
+			if (!messages || messages.length === 0) {
+				container.innerHTML = '<div class="room-chat-system-msg">Nenhuma conversa na sala ainda. Envie um "Olá!" para começar.</div>';
+				return;
+			}
+
+			container.innerHTML = messages.map(m => {
+				if (m.type === 'system') {
+					return `<div class="room-chat-system-msg">${escapeHtml(m.text)}</div>`;
+				}
+				return `
+					<div class="room-chat-msg">
+						<img src="${m.avatar || '/assets/images/gabi.jpg'}" class="room-chat-avatar" alt="${m.sender}">
+						<div>
+							<div class="room-chat-sender">${escapeHtml(m.sender)} <span style="font-size: 9.5px; color: #94a3b8; font-weight: 400; margin-left: 4px;">${m.timestamp}</span></div>
+							<div class="room-chat-bubble">${escapeHtml(m.text)}</div>
+						</div>
+					</div>
+				`;
+			}).join('');
+
+			container.scrollTop = container.scrollHeight;
+		}
+
+		async function handleSendRoomMessage(e) {
+			e.preventDefault();
+			if (!currentActiveRoomId) return;
+
+			const input = document.getElementById('roomChatInput');
+			const text = input.value.trim();
+			if (!text) return;
+
+			input.value = '';
+
+			try {
+				const res = await fetch(`/api/rooms/${encodeURIComponent(currentActiveRoomId)}/chat`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', 'x-active-user': activeUser },
+					body: JSON.stringify({ text })
+				});
+				const { data: newMsg } = await res.json();
+				if (!newMsg) return;
+
+				const container = document.getElementById('activeRoomChatLog');
+				const msgDiv = document.createElement('div');
+				msgDiv.className = 'room-chat-msg';
+				msgDiv.innerHTML = `
+					<img src="${newMsg.avatar || '/assets/images/gabi.jpg'}" class="room-chat-avatar" alt="${newMsg.sender}">
+					<div>
+						<div class="room-chat-sender">${escapeHtml(newMsg.sender)} <span style="font-size: 9.5px; color: #94a3b8; font-weight: 400; margin-left: 4px;">${newMsg.timestamp}</span></div>
+						<div class="room-chat-bubble">${escapeHtml(newMsg.text)}</div>
+					</div>
+				`;
+				container.appendChild(msgDiv);
+				container.scrollTop = container.scrollHeight;
+			} catch (err) {
+				showLiveToast('Erro', 'Falha ao enviar mensagem na sala.', '/assets/images/red_room.jpg', 'offline');
+			}
+		}
+
+		async function leaveCurrentRoom() {
+			if (!currentActiveRoomId) return;
+			const leavingId = currentActiveRoomId;
+			currentActiveRoomId = null;
+
+			try {
+				await fetch(`/api/rooms/${encodeURIComponent(leavingId)}/leave`, {
+					method: 'POST',
+					headers: { 'x-active-user': activeUser }
+				});
+			} catch (e) {}
+
+			document.getElementById('activeRoomView').style.display = 'none';
+			document.getElementById('roomsCatalogView').style.display = 'block';
+			loadRooms();
+			showLiveToast('Salas IMVU', 'Você saiu da sala.', '/assets/images/red_room.jpg', 'msg');
+		}
+
+		// =========================================================
+		// 6. ABA AMIGOS
+		// =========================================================
+		async function loadFriends() {
+			const container = document.getElementById('friendsGrid');
+			container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 30px; color: var(--text-muted);">Carregando amigos...</div>';
+
+			try {
+				const res = await fetch('/api/friends', { headers: { 'x-active-user': activeUser } });
+				const { data } = await res.json();
+
+				if (!data || data.length === 0) {
+					container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 30px; color: var(--text-muted);">Nenhum amigo encontrado.</div>';
+					return;
+				}
+
+				container.innerHTML = data.map(f => `
+					<div class="imvu-user-card">
+						<div class="user-card-image-wrap">
+							<img src="${f.avatarPortraitImage || f.avatarImage || '/assets/images/ale.jpg'}" alt="${f.displayName}">
+							${f.isAp ? `<div class="badge-ap">AP</div>` : ''}
+						</div>
+						<div class="user-card-meta">
+							<div class="user-card-displayname">${escapeHtml(f.displayName || f.username)}</div>
+							<div class="user-card-handle">@${escapeHtml(f.username)}</div>
+							<div style="margin-top: 4px;">
+								<span style="font-size: 11px; font-weight: 700; color: ${f.isOnline ? 'var(--online-green)' : '#94a3b8'};">
+									${f.isOnline ? '🟢 Online no IMVU' : '⚪ Offline'}
+								</span>
+							</div>
+						</div>
+						<div class="user-card-actions">
+							<button class="btn-card-action" onclick="startDirectChat('${f.username}')">💬 Conversar</button>
+							<button class="btn-card-action" onclick="openUserProfileModal('${f.username}')">👤 Perfil</button>
+						</div>
+					</div>
+				`).join('');
+			} catch (err) {
+				container.innerHTML = '<div style="grid-column: 1/-1; color: #ef4444;">Erro ao buscar amigos.</div>';
+			}
+		}
+
+		// Verificação Periódica de Notificações
+		async function checkLiveUpdates() {
+			if (!activeUser) return;
+			try {
+				const res = await fetch('/api/notifications', { headers: { 'x-active-user': activeUser } });
+				const { data } = await res.json();
+				if (data && data.length > 0) {
+					document.getElementById('notifBadge').textContent = data.length;
+				}
+			} catch (e) {}
+		}
+
+		function escapeHtml(str) {
+			if (!str) return '';
+			return str.replace(/[&<>'"]/g, tag => ({
+				'&': '&amp;',
+				'<': '&lt;',
+				'>': '&gt;',
+				"'": '&#39;',
+				'"': '&quot;'
+			}[tag] || tag));
+		}
+
+		document.getElementById('btnLogout').addEventListener('click', () => {
+			localStorage.removeItem('imvu_active_user');
+			location.reload();
+		});
+	</script>
+</body>
+</html>
