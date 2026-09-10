@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import axios from 'axios';
@@ -52,6 +53,81 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// =============================================================
+// SUPABASE & PERSISTÊNCIA MULTI-TENANT ISOLADA POR USUÁRIO
+// Projeto: enqntyzoaftatfhovsxw (https://enqntyzoaftatfhovsxw.supabase.co)
+// =============================================================
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://enqntyzoaftatfhovsxw.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVucW50eXpvYWZ0YXRmaG92c3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwNTcxNTAsImV4cCI6MjEwNDYzMzE1MH0.bfk6-0MmkJVB57qSsE7w8l8krYsVkxs9inmTc3mHHnU';
+
+// Arquivo de persistência local por usuário (garante privacidade e funcionamento instantâneo)
+const DATA_DIR = path.join(__dirname, 'data');
+if (!fs.existsSync(DATA_DIR)) {
+	try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
+}
+const LOCAL_STORE_FILE = path.join(DATA_DIR, 'store.json');
+
+function loadLocalStore() {
+	try {
+		if (fs.existsSync(LOCAL_STORE_FILE)) {
+			return JSON.parse(fs.readFileSync(LOCAL_STORE_FILE, 'utf-8'));
+		}
+	} catch (e) {
+		console.warn('Erro ao carregar store local:', e.message);
+	}
+	return {
+		userCheckerTargets: {}, // { [owner_username_lower]: [ card1, card2 ] }
+		userSavedRooms: {},     // { [owner_username_lower]: [ room1, room2 ] }
+		userAppSettings: {},    // { [owner_username_lower]: { is_visible, sound_alerts, ... } }
+		userAppFriends: {},     // { [owner_username_lower]: [ friend1, friend2 ] }
+		userConversations: {},  // { [pairKey]: [ messages ] }
+		user3dPresence: {}      // { [owner_username_lower]: { pos_x, pos_y, pos_z, rot_y, ... } }
+	};
+}
+
+let dbStore = loadLocalStore();
+if (!dbStore.userCheckerTargets) dbStore.userCheckerTargets = {};
+if (!dbStore.userSavedRooms) dbStore.userSavedRooms = {};
+if (!dbStore.userAppSettings) dbStore.userAppSettings = {};
+if (!dbStore.userAppFriends) dbStore.userAppFriends = {};
+if (!dbStore.userConversations) dbStore.userConversations = {};
+if (!dbStore.user3dPresence) dbStore.user3dPresence = {};
+
+function saveLocalStore() {
+	try {
+		fs.writeFileSync(LOCAL_STORE_FILE, JSON.stringify(dbStore, null, 2), 'utf-8');
+	} catch (e) {
+		console.warn('Erro ao salvar store local:', e.message);
+	}
+}
+
+// Helper para chamadas à API REST do Supabase
+async function supabaseRest(endpoint, method = 'GET', data = null, query = '') {
+	try {
+		const fullUrl = `${SUPABASE_URL}/rest/v1/${endpoint}${query ? '?' + query : ''}`;
+		const headers = {
+			'apikey': SUPABASE_KEY,
+			'Authorization': `Bearer ${SUPABASE_KEY}`,
+			'Content-Type': 'application/json',
+			'Prefer': method === 'POST' ? 'resolution=merge-duplicates,return=representation' : 'return=representation'
+		};
+		const response = await axios({
+			method,
+			url: fullUrl,
+			headers,
+			data,
+			timeout: 5000
+		});
+		return { success: true, data: response.data };
+	} catch (err) {
+		return {
+			success: false,
+			status: err.response?.status,
+			error: err.response?.data?.message || err.message
+		};
+	}
+}
+
 // Estruturas de memória do Checker PartnerVU
 const clients = new Map();
 const userNotifications = new Map();
@@ -60,6 +136,17 @@ const userSavedFriends = new Map();
 const userRoomHistory = new Map();
 const directMessagesStore = new Map();
 const appUsersOnline = new Map();
+
+// Hidratar estruturas da memória com dados persistentes locais
+for (const [userKey, rooms] of Object.entries(dbStore.userSavedRooms)) {
+	favoriteRoomsMap.set(userKey, rooms);
+}
+for (const [userKey, friends] of Object.entries(dbStore.userAppFriends)) {
+	userSavedFriends.set(userKey, friends);
+}
+for (const [pairKey, msgs] of Object.entries(dbStore.userConversations)) {
+	directMessagesStore.set(pairKey, msgs);
+}
 
 // Helper para chave de mensagem direta
 function getPairKey(u1, u2) {
@@ -253,11 +340,11 @@ const REAL_IMVU_ROOMS = [
 		id: 'room-252190496-52',
 		name: 'ᴀ sᴀʟᴀ ᴠᴇʀᴍᴇʟʜᴀ',
 		host: {
-			username: 'Brenin',
-			displayName: 'Brenin'
+			username: 'Alex_Neo',
+			displayName: 'Alex Neo'
 		},
-		image: 'https://webasset-akm.imvu.com/resized_image/duserimages/s332x281/tmaintain_aspect_ratio/i%2Fuserdata%2F52%2F19%2F04%2F96%2Fuserpics%2FSnap_6qzcaLAGyf1500019297.gif',
-		description: '| kiss | beijo | sexy | climax | quente | quarto | motel | poses | casal | couple | photo | room |',
+		image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80',
+		description: '| kiss | beijo | relax | lounge | quarto | motel | poses | casal | couple | photo | room |',
 		language: 'Portuguese',
 		capacity: 6,
 		occupants: [],
@@ -268,11 +355,11 @@ const REAL_IMVU_ROOMS = [
 		id: 'room-252190496-36',
 		name: 'ᕳᕲ OAKLEYROS 2.0',
 		host: {
-			username: 'Brenin',
-			displayName: 'Brenin'
+			username: 'Alex_Neo',
+			displayName: 'Alex Neo'
 		},
-		image: 'https://webasset-akm.imvu.com/resized_image/duserimages/s332x281/tmaintain_aspect_ratio/i%2Fuserdata%2F52%2F19%2F04%2F96%2Fuserpics%2FSnap_2yvCTiRm9B324469177.jpg',
-		description: 'Oakley, trap, funk, resenha e amizades no IMVU Brasil. Venha curtir o som!',
+		image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
+		description: 'Lounge, trap, funk, resenha e amizades no IMVU. Venha curtir o som!',
 		language: 'Portuguese',
 		capacity: 10,
 		occupants: [],
@@ -353,7 +440,7 @@ app.get('/api/checker/user/:username', async (req, res) => {
 	if (!realUser) {
 		return res.status(404).json({
 			success: false,
-			message: `Avatar "@${username}" não foi encontrado no IMVU. Verifique a ortografia exata (ex: Brenin, AckllaOliveira, Guest_Kngold).`
+			message: `Avatar "@${username}" não foi encontrado no IMVU. Verifique a ortografia exata (ex: Luna_Star, Maya_Vibe, Alex_Neo).`
 		});
 	}
 
@@ -402,12 +489,16 @@ app.post('/api/checker/batch-status', async (req, res) => {
 // -------------------------------------------------------------
 app.post('/api/app-users/heartbeat', async (req, res) => {
 	const activeUser = req.headers['x-active-user'] || req.body.username;
-	const { currentTab, currentRoom } = req.body;
+	const { currentTab, currentRoom, isVisible } = req.body;
 
 	if (activeUser && activeUser.trim()) {
 		const clean = activeUser.trim();
 		const userKey = clean.toLowerCase();
 		const existing = appUsersOnline.get(userKey) || {};
+
+		// Checar configuração de visibilidade do usuário
+		const userSettings = dbStore.userAppSettings[userKey] || { is_visible: true };
+		const effectiveVisible = isVisible !== undefined ? Boolean(isVisible) : (userSettings.is_visible !== false);
 
 		let avatar = existing.avatarImage || req.body.avatarImage || '';
 		let displayName = existing.displayName || clean;
@@ -426,7 +517,8 @@ app.post('/api/app-users/heartbeat', async (req, res) => {
 			avatarImage: avatar || '',
 			lastSeen: Date.now(),
 			currentTab: currentTab || 'checker',
-			currentRoom: currentRoom || null
+			currentRoom: currentRoom || null,
+			isVisible: effectiveVisible
 		});
 	}
 
@@ -442,10 +534,15 @@ app.post('/api/app-users/heartbeat', async (req, res) => {
 });
 
 app.get('/api/app-users/online', (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || '').toLowerCase();
 	const now = Date.now();
 	const list = [];
 	for (const [key, val] of appUsersOnline.entries()) {
 		if (now - val.lastSeen <= 120000) {
+			// PRIVACIDADE: Usuário com visibilidade desativada (Modo Oculto) não aparece para terceiros
+			if (key !== activeUser && val.isVisible === false) {
+				continue;
+			}
 			list.push({
 				...val,
 				isOnline: true,
@@ -884,11 +981,30 @@ app.get(['/api/rooms/history', '/api/rooms/history/:username'], (req, res) => {
 	return res.json({ success: true, data: history });
 });
 
-// Salas salvas pelo usuário
-app.get('/api/rooms/saved', (req, res) => {
+// Salas salvas pelo usuário (com isolamento por usuário)
+app.get('/api/rooms/saved', async (req, res) => {
 	const activeUser = req.headers['x-active-user'];
 	const userKey = (activeUser || 'visitante_checker').toLowerCase();
-	const userFavs = favoriteRoomsMap.get(userKey) || [];
+
+	// Tentar carregar do Supabase primeiro
+	try {
+		const sRes = await supabaseRest('user_saved_rooms', 'GET', null, `owner_username=eq.${encodeURIComponent(userKey)}&select=*`);
+		if (sRes.success && Array.isArray(sRes.data) && sRes.data.length > 0) {
+			const mapped = sRes.data.map(r => ({
+				id: r.room_id,
+				name: r.room_name,
+				description: r.description || '',
+				capacity: r.capacity || 10,
+				image: r.image || ''
+			}));
+			favoriteRoomsMap.set(userKey, mapped);
+			dbStore.userSavedRooms[userKey] = mapped;
+			saveLocalStore();
+			return res.json({ success: true, data: mapped });
+		}
+	} catch (e) {}
+
+	const userFavs = favoriteRoomsMap.get(userKey) || dbStore.userSavedRooms[userKey] || [];
 	return res.json({ success: true, data: userFavs });
 });
 
@@ -907,16 +1023,31 @@ app.post('/api/rooms/favorite/toggle', async (req, res) => {
 	if (existingIndex >= 0) {
 		userFavs.splice(existingIndex, 1);
 		isFavorited = false;
+		// Deletar do Supabase
+		supabaseRest('user_saved_rooms', 'DELETE', null, `owner_username=eq.${encodeURIComponent(userKey)}&room_id=eq.${encodeURIComponent(roomId)}`).catch(() => {});
 	} else {
-		userFavs.push({
+		const newRoom = {
 			id: String(roomId),
 			name: roomName || roomId,
 			description: description || '',
 			capacity: capacity || 10,
 			image: image || ''
-		});
+		};
+		userFavs.push(newRoom);
 		isFavorited = true;
+		// Salvar no Supabase
+		supabaseRest('user_saved_rooms', 'POST', [{
+			owner_username: userKey,
+			room_id: String(roomId),
+			room_name: newRoom.name,
+			description: newRoom.description,
+			capacity: newRoom.capacity,
+			image: newRoom.image
+		}]).catch(() => {});
 	}
+
+	dbStore.userSavedRooms[userKey] = userFavs;
+	saveLocalStore();
 
 	return res.json({
 		success: true,
@@ -1003,8 +1134,8 @@ app.post('/api/checker/room-history/record', (req, res) => {
 // Endpoint para explorar avatares com filtros da comunidade IMVU
 const CURATED_EXPLORE_AVATARS = [
 	{
-		username: 'Guest_Millervidah000',
-		displayName: 'Gabi 🥂',
+		username: 'Luna_Star',
+		displayName: 'Luna Star 🌟',
 		gender: 'Female',
 		country: 'Global',
 		location: 'Female, Global',
@@ -1014,8 +1145,8 @@ const CURATED_EXPLORE_AVATARS = [
 		avatarImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80'
 	},
 	{
-		username: 'Guest_Kngold',
-		displayName: 'Guest_Kngold',
+		username: 'Maya_Vibe',
+		displayName: 'Maya Vibe ✨',
 		gender: 'Female',
 		country: 'USA - NY',
 		location: 'Female, USA - NY',
@@ -1025,59 +1156,59 @@ const CURATED_EXPLORE_AVATARS = [
 		avatarImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&auto=format&fit=crop&q=80'
 	},
 	{
-		username: 'Brenin',
-		displayName: 'Brenin',
+		username: 'Alex_Neo',
+		displayName: 'Alex Neo ⚡',
 		gender: 'Male',
-		country: 'Brazil - SP',
-		location: 'Male, Brazil - SP',
+		country: 'Cyber City',
+		location: 'Male, Cyber City',
 		isAp: true,
 		isVip: true,
 		online: true,
-		avatarImage: 'https://webasset-akm.imvu.com/resized_image/duserimages/s332x281/tmaintain_aspect_ratio/i%2Fuserdata%2F52%2F19%2F04%2F96%2Fuserpics%2FSnap_2yvCTiRm9B324469177.jpg'
+		avatarImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80'
 	},
 	{
-		username: 'Guest_011gaby5',
-		displayName: '011gaby',
+		username: 'Chloe_Moon',
+		displayName: 'Chloe Moon 🌙',
 		gender: 'Female',
-		country: 'Brazil - RJ',
-		location: 'Female, Brazil - RJ',
+		country: 'Tokyo',
+		location: 'Female, Tokyo',
 		isAp: false,
 		isVip: false,
 		online: true,
 		avatarImage: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80'
 	},
 	{
-		username: 'Guest_01ll',
-		displayName: '♡',
+		username: 'Sophia_Rose',
+		displayName: 'Sophia Rose 🌹',
 		gender: 'Female',
-		country: 'Global',
-		location: 'Female, Global',
+		country: 'Paris',
+		location: 'Female, Paris',
 		isAp: false,
 		isVip: false,
 		online: false,
-		avatarImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80'
-	},
-	{
-		username: 'Guest_01Leticia',
-		displayName: '@Guest_01Leticia',
-		gender: 'Female',
-		country: 'Brazil - MG',
-		location: 'Female, Brazil - MG',
-		isAp: false,
-		isVip: true,
-		online: true,
 		avatarImage: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600&auto=format&fit=crop&q=80'
 	},
 	{
-		username: 'AckllaOliveira',
-		displayName: 'AckllaOliveira',
+		username: 'Elena_Nova',
+		displayName: 'Elena Nova 💎',
 		gender: 'Female',
-		country: 'Brazil - SP',
-		location: 'Female, Brazil - SP',
+		country: 'Milan',
+		location: 'Female, Milan',
+		isAp: false,
+		isVip: true,
+		online: true,
+		avatarImage: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=600&auto=format&fit=crop&q=80'
+	},
+	{
+		username: 'Zoe_Aura',
+		displayName: 'Zoe Aura 🔮',
+		gender: 'Female',
+		country: 'London',
+		location: 'Female, London',
 		isAp: true,
 		isVip: false,
 		online: false,
-		avatarImage: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=600&auto=format&fit=crop&q=80'
+		avatarImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=600&auto=format&fit=crop&q=80'
 	}
 ];
 
@@ -1287,6 +1418,15 @@ app.post('/api/messages/send', async (req, res) => {
 	};
 
 	msgs.push(newMsg);
+	dbStore.userConversations[pairKey] = msgs;
+	saveLocalStore();
+
+	// Sincronizar com Supabase se disponível
+	supabaseRest('user_conversations_messages', 'POST', [{
+		sender_username: activeUser.toLowerCase(),
+		recipient_username: recipientUsername.toLowerCase(),
+		message_text: messageText.trim()
+	}]).catch(() => {});
 
 	return res.json({
 		success: true,
@@ -1302,6 +1442,458 @@ app.get('/api/notifications', (req, res) => {
 	const userKey = (activeUser || 'eu').toLowerCase();
 	const notifs = userNotifications.get(userKey) || [];
 	return res.json({ success: true, data: notifs });
+});
+
+// =============================================================
+// SUPABASE & METADADOS DE SINCRONIZAÇÃO
+// =============================================================
+app.get('/api/supabase/status', async (req, res) => {
+	const checks = {};
+	const tables = ['user_checker_targets', 'user_saved_rooms', 'user_app_settings', 'user_app_friends', 'user_conversations_messages', 'user_3d_presence'];
+	
+	for (const tbl of tables) {
+		const tRes = await supabaseRest(tbl, 'GET', null, 'limit=1');
+		checks[tbl] = tRes.success;
+	}
+	
+	const allOk = Object.values(checks).every(Boolean);
+	return res.json({
+		success: true,
+		supabaseUrl: SUPABASE_URL,
+		connected: allOk || Object.values(checks).some(Boolean),
+		allTablesCreated: allOk,
+		tables: checks,
+		fallbackStorageActive: true
+	});
+});
+
+app.get('/api/supabase/sql', (req, res) => {
+	const sqlPath = path.join(__dirname, 'supabase_schema.sql');
+	if (fs.existsSync(sqlPath)) {
+		return res.type('text/plain').send(fs.readFileSync(sqlPath, 'utf-8'));
+	}
+	return res.status(404).send('-- Esquema SQL ainda não gerado.');
+});
+
+// =============================================================
+// CHECKER CARDS (ISOLAMENTO TOTAL POR USUÁRIO)
+// =============================================================
+app.get('/api/checker/cards', async (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || 'visitante_checker').toLowerCase();
+	
+	// Tenta carregar do Supabase primeiro
+	try {
+		const supaRes = await supabaseRest('user_checker_targets', 'GET', null, `owner_username=eq.${encodeURIComponent(activeUser)}&select=*`);
+		if (supaRes.success && Array.isArray(supaRes.data) && supaRes.data.length > 0) {
+			dbStore.userCheckerTargets[activeUser] = supaRes.data.map(c => ({
+				id: c.id,
+				username: c.target_username,
+				displayName: c.display_name || c.target_username,
+				avatarImage: c.avatar_image || '',
+				tag: c.notes || '',
+				notifyOnline: c.notify_online !== false,
+				notifyOffline: c.notify_offline !== false,
+				notifyRoom: c.notify_room !== false,
+				history: c.status_history || [],
+				lastStatus: c.last_status || {}
+			}));
+			saveLocalStore();
+			return res.json({ success: true, data: dbStore.userCheckerTargets[activeUser], source: 'supabase' });
+		}
+	} catch (e) {}
+
+	const cards = dbStore.userCheckerTargets[activeUser] || [];
+	return res.json({ success: true, data: cards, source: 'local' });
+});
+
+app.post('/api/checker/cards/save', async (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || 'visitante_checker').toLowerCase();
+	const { targetUsername, displayName, avatarImage, tag, notifyOnline, notifyOffline, notifyRoom, history, lastStatus } = req.body;
+
+	if (!targetUsername || !targetUsername.trim()) {
+		return res.status(400).json({ success: false, message: 'Nome de usuário alvo obrigatório.' });
+	}
+
+	const cleanTarget = targetUsername.trim();
+	if (!dbStore.userCheckerTargets[activeUser]) dbStore.userCheckerTargets[activeUser] = [];
+	const list = dbStore.userCheckerTargets[activeUser];
+
+	const existingIndex = list.findIndex(c => c.username.toLowerCase() === cleanTarget.toLowerCase());
+	const cardObj = {
+		id: existingIndex >= 0 ? list[existingIndex].id : Date.now().toString(),
+		username: cleanTarget,
+		displayName: displayName || cleanTarget,
+		avatarImage: avatarImage || '',
+		tag: tag || '',
+		notifyOnline: notifyOnline !== false,
+		notifyOffline: notifyOffline !== false,
+		notifyRoom: notifyRoom !== false,
+		history: history || (existingIndex >= 0 ? list[existingIndex].history : []),
+		lastStatus: lastStatus || (existingIndex >= 0 ? list[existingIndex].lastStatus : {})
+	};
+
+	if (existingIndex >= 0) {
+		list[existingIndex] = cardObj;
+	} else {
+		list.push(cardObj);
+	}
+	saveLocalStore();
+
+	// Sincronizar Supabase
+	supabaseRest('user_checker_targets', 'POST', [{
+		owner_username: activeUser,
+		target_username: cleanTarget,
+		display_name: cardObj.displayName,
+		avatar_image: cardObj.avatarImage,
+		notes: cardObj.tag,
+		notify_online: cardObj.notifyOnline,
+		notify_offline: cardObj.notifyOffline,
+		notify_room: cardObj.notifyRoom,
+		status_history: cardObj.history,
+		last_status: cardObj.lastStatus,
+		updated_at: new Date().toISOString()
+	}]).catch(() => {});
+
+	return res.json({ success: true, message: 'Card salvo com isolamento e privacidade.', data: cardObj });
+});
+
+app.post('/api/checker/cards/delete', async (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || 'visitante_checker').toLowerCase();
+	const { targetUsername } = req.body;
+
+	if (!dbStore.userCheckerTargets[activeUser]) return res.json({ success: true });
+	const list = dbStore.userCheckerTargets[activeUser];
+	const idx = list.findIndex(c => c.username.toLowerCase() === (targetUsername || '').toLowerCase());
+	if (idx >= 0) {
+		list.splice(idx, 1);
+		saveLocalStore();
+	}
+
+	// Deleta do Supabase
+	supabaseRest('user_checker_targets', 'DELETE', null, `owner_username=eq.${encodeURIComponent(activeUser)}&target_username=eq.${encodeURIComponent(targetUsername)}`).catch(() => {});
+
+	return res.json({ success: true, message: 'Card removido com sucesso.' });
+});
+
+// =============================================================
+// CONFIGURAÇÕES & PRIVACIDADE / MODO VISÍVEL (FANTASMA)
+// =============================================================
+app.get('/api/user/settings', async (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || 'visitante_checker').toLowerCase();
+
+	try {
+		const sRes = await supabaseRest('user_app_settings', 'GET', null, `owner_username=eq.${encodeURIComponent(activeUser)}&select=*`);
+		if (sRes.success && Array.isArray(sRes.data) && sRes.data[0]) {
+			dbStore.userAppSettings[activeUser] = {
+				is_visible: sRes.data[0].is_visible !== false,
+				sound_alerts: sRes.data[0].sound_alerts !== false,
+				poll_interval_seconds: sRes.data[0].poll_interval_seconds || 15,
+				theme: sRes.data[0].theme || 'dark'
+			};
+			saveLocalStore();
+		}
+	} catch (e) {}
+
+	const settings = dbStore.userAppSettings[activeUser] || {
+		is_visible: true,
+		sound_alerts: true,
+		poll_interval_seconds: 15,
+		theme: 'dark'
+	};
+	return res.json({ success: true, data: settings });
+});
+
+app.post('/api/user/settings', async (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || 'visitante_checker').toLowerCase();
+	const current = dbStore.userAppSettings[activeUser] || { is_visible: true, sound_alerts: true, poll_interval_seconds: 15, theme: 'dark' };
+	const updated = {
+		...current,
+		...req.body
+	};
+	dbStore.userAppSettings[activeUser] = updated;
+
+	if (dbStore.user3dPresence[activeUser]) {
+		dbStore.user3dPresence[activeUser].is_visible = updated.is_visible !== false;
+	}
+	saveLocalStore();
+
+	supabaseRest('user_app_settings', 'POST', [{
+		owner_username: activeUser,
+		is_visible: updated.is_visible !== false,
+		sound_alerts: updated.sound_alerts !== false,
+		poll_interval_seconds: updated.poll_interval_seconds || 15,
+		theme: updated.theme || 'dark',
+		updated_at: new Date().toISOString()
+	}]).catch(() => {});
+
+	return res.json({ success: true, data: updated });
+});
+
+// =============================================================
+// AMIGOS DO MESMO APLICATIVO
+// =============================================================
+app.get('/api/app-friends', async (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || 'visitante_checker').toLowerCase();
+
+	try {
+		const supaFriends = await supabaseRest('user_app_friends', 'GET', null, `owner_username=eq.${encodeURIComponent(activeUser)}&select=*`);
+		if (supaFriends.success && Array.isArray(supaFriends.data) && supaFriends.data.length > 0) {
+			dbStore.userAppFriends[activeUser] = supaFriends.data.map(f => ({
+				username: f.friend_username,
+				displayName: f.friend_display_name || f.friend_username,
+				avatarImage: f.friend_avatar_image || '',
+				type: f.friend_type || 'app_user'
+			}));
+			saveLocalStore();
+		}
+	} catch (e) {}
+
+	const friends = (dbStore.userAppFriends[activeUser] || []).map(f => {
+		const presence = dbStore.user3dPresence[f.username.toLowerCase()];
+		const isOnline = Boolean(presence && (Date.now() - (presence.last_seen || 0) < 60000) && presence.is_visible);
+		return {
+			...f,
+			isOnline,
+			isIn3d: Boolean(presence && (Date.now() - (presence.last_seen || 0) < 60000) && presence.is_visible),
+			currentDance: presence ? presence.current_dance : 'idle'
+		};
+	});
+	return res.json({ success: true, data: friends });
+});
+
+app.post('/api/app-friends/add', async (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || 'visitante_checker').toLowerCase();
+	const { friendUsername, friendDisplayName, friendAvatarImage, friendType } = req.body;
+
+	if (!friendUsername || !friendUsername.trim()) {
+		return res.status(400).json({ success: false, message: 'Nome de usuário obrigatório.' });
+	}
+	const clean = friendUsername.trim();
+	if (clean.toLowerCase() === activeUser) {
+		return res.status(400).json({ success: false, message: 'Você não pode adicionar a si mesmo como amigo.' });
+	}
+
+	if (!dbStore.userAppFriends[activeUser]) dbStore.userAppFriends[activeUser] = [];
+	const list = dbStore.userAppFriends[activeUser];
+
+	if (!list.some(f => f.username.toLowerCase() === clean.toLowerCase())) {
+		let avatar = friendAvatarImage || '';
+		let display = friendDisplayName || clean;
+		if (!avatar) {
+			const u = await fetchImvuUser(clean);
+			if (u) {
+				avatar = u.avatarImage;
+				display = u.displayName;
+			}
+		}
+
+		const newFriend = {
+			username: clean,
+			displayName: display,
+			avatarImage: avatar,
+			type: friendType || 'app_user',
+			addedAt: new Date().toISOString()
+		};
+		list.push(newFriend);
+		saveLocalStore();
+
+		supabaseRest('user_app_friends', 'POST', [{
+			owner_username: activeUser,
+			friend_username: clean,
+			friend_display_name: display,
+			friend_avatar_image: avatar,
+			friend_type: newFriend.type
+		}]).catch(() => {});
+	}
+
+	return res.json({ success: true, message: `@${clean} adicionado à sua lista de amigos!`, data: dbStore.userAppFriends[activeUser] });
+});
+
+app.post('/api/app-friends/remove', (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || 'visitante_checker').toLowerCase();
+	const { friendUsername } = req.body;
+	if (!dbStore.userAppFriends[activeUser]) return res.json({ success: true });
+
+	const list = dbStore.userAppFriends[activeUser];
+	const idx = list.findIndex(f => f.username.toLowerCase() === (friendUsername || '').toLowerCase());
+	if (idx >= 0) {
+		list.splice(idx, 1);
+		saveLocalStore();
+	}
+	supabaseRest('user_app_friends', 'DELETE', null, `owner_username=eq.${encodeURIComponent(activeUser)}&friend_username=eq.${encodeURIComponent(friendUsername)}`).catch(() => {});
+	return res.json({ success: true, message: 'Amigo removido.', data: list });
+});
+
+// =============================================================
+// MULTIPLAYER NO CENÁRIO 3D & BALÕES DE FALA
+// =============================================================
+app.post('/api/3d/heartbeat', async (req, res) => {
+	const activeUser = req.headers['x-active-user'] || req.body.username || 'visitante_checker';
+	const userKey = activeUser.toLowerCase();
+	const { x, y, z, rotY, currentDance, danceProgress, isSitting, seatId, isVisible, lastSpeech, lastSpeechTime } = req.body;
+
+	const userSettings = dbStore.userAppSettings[userKey] || { is_visible: true };
+	const effectiveVisibility = isVisible !== undefined ? Boolean(isVisible) : (userSettings.is_visible !== false);
+
+	const presenceData = {
+		owner_username: activeUser,
+		display_name: req.body.displayName || activeUser,
+		avatar_image: req.body.avatarImage || '',
+		pos_x: Number(x) || 0,
+		pos_y: Number(y) || 0,
+		pos_z: Number(z) || 0,
+		rot_y: Number(rotY) || 0,
+		current_dance: currentDance || 'idle',
+		dance_progress: Number(danceProgress) || 0,
+		is_sitting: Boolean(isSitting),
+		seat_id: seatId || null,
+		is_visible: effectiveVisibility,
+		last_speech: lastSpeech || '',
+		last_speech_time: Number(lastSpeechTime) || 0,
+		last_seen: Date.now()
+	};
+	dbStore.user3dPresence[userKey] = presenceData;
+	saveLocalStore();
+
+	supabaseRest('user_3d_presence', 'POST', [{
+		owner_username: userKey,
+		display_name: presenceData.display_name,
+		avatar_image: presenceData.avatar_image,
+		pos_x: presenceData.pos_x,
+		pos_y: presenceData.pos_y,
+		pos_z: presenceData.pos_z,
+		rot_y: presenceData.rot_y,
+		current_dance: presenceData.current_dance,
+		dance_progress: presenceData.dance_progress,
+		is_sitting: presenceData.is_sitting,
+		seat_id: presenceData.seat_id,
+		is_visible: presenceData.is_visible,
+		last_speech: presenceData.last_speech,
+		last_speech_time: presenceData.last_speech_time,
+		updated_at: new Date().toISOString()
+	}]).catch(() => {});
+
+	return res.json({ success: true, is_visible: effectiveVisibility });
+});
+
+app.get('/api/3d/users', (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || '').toLowerCase();
+	const now = Date.now();
+	const visibleUsers = [];
+
+	const mySettings = dbStore.userAppSettings[activeUser] || { is_visible: true };
+	const iAmVisible = mySettings.is_visible !== false;
+
+	for (const [key, user] of Object.entries(dbStore.user3dPresence)) {
+		if (now - (user.last_seen || 0) > 60000) continue;
+		if (key === activeUser) continue;
+		// PRIVACIDADE CRÍTICA: Não renderiza quem está em modo oculto
+		if (!user.is_visible) continue;
+
+		visibleUsers.push({
+			username: user.owner_username,
+			displayName: user.display_name,
+			avatarImage: user.avatar_image,
+			x: user.pos_x,
+			y: user.pos_y,
+			z: user.pos_z,
+			rotY: user.rot_y,
+			currentDance: user.current_dance,
+			danceProgress: user.dance_progress,
+			isSitting: user.is_sitting,
+			seatId: user.seat_id,
+			lastSpeech: (now - (user.last_speech_time || 0) < 15000) ? user.last_speech : '',
+			lastSpeechTime: user.last_speech_time
+		});
+	}
+
+	// Garantir que o cenário sempre tenha avatares online imediatamente ao entrar no app
+	const fallbackCommunity3D = [
+		{
+			username: 'Luna_Star',
+			displayName: 'Luna Star 🌟',
+			avatarImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
+			x: 3.2,
+			y: -1.05,
+			z: 1.8,
+			rotY: 0.5,
+			currentDance: 'passinho_funk',
+			isSitting: false,
+			lastSpeech: 'Bora dançar na pista! 🎵',
+			lastSpeechTime: now
+		},
+		{
+			username: 'Alex_Neo',
+			displayName: 'Alex Neo ⚡',
+			avatarImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
+			x: -2.8,
+			y: -1.05,
+			z: -2.2,
+			rotY: 3.1,
+			currentDance: 'electro_wave',
+			isSitting: false,
+			lastSpeech: 'Vibe absurda nesse lounge! 🔥',
+			lastSpeechTime: now - 3000
+		},
+		{
+			username: 'Maya_Vibe',
+			displayName: 'Maya Vibe ✨',
+			avatarImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&auto=format&fit=crop&q=80',
+			x: -5.2,
+			y: -0.6,
+			z: -4.5,
+			rotY: 0.0,
+			currentDance: 'sit',
+			isSitting: true,
+			lastSpeech: 'Adorei esse sofá VIP!',
+			lastSpeechTime: now - 6000
+		}
+	];
+
+	fallbackCommunity3D.forEach(fb => {
+		if (fb.username.toLowerCase() !== activeUser && !visibleUsers.some(u => u.username.toLowerCase() === fb.username.toLowerCase())) {
+			visibleUsers.push(fb);
+		}
+	});
+
+	return res.json({
+		success: true,
+		myVisibility: iAmVisible,
+		data: visibleUsers
+	});
+});
+
+app.post('/api/3d/speech', (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || 'visitante_checker').toLowerCase();
+	const { text } = req.body;
+	if (!text || !text.trim()) return res.status(400).json({ success: false, message: 'Texto vazio' });
+
+	if (dbStore.user3dPresence[activeUser]) {
+		dbStore.user3dPresence[activeUser].last_speech = text.trim();
+		dbStore.user3dPresence[activeUser].last_speech_time = Date.now();
+		saveLocalStore();
+	}
+	return res.json({ success: true, text: text.trim() });
+});
+
+app.post('/api/3d/sync-dance', (req, res) => {
+	const { danceName } = req.body;
+	return res.json({
+		success: true,
+		danceName: danceName || 'passinho_funk',
+		timestamp: Date.now()
+	});
+});
+
+app.get('/api/supabase-sql', (req, res) => {
+	try {
+		const sqlPath = path.join(__dirname, 'supabase_schema.sql');
+		if (fs.existsSync(sqlPath)) {
+			const sql = fs.readFileSync(sqlPath, 'utf-8');
+			return res.json({ success: true, sql });
+		}
+	} catch (e) {}
+	return res.json({ success: false, message: 'Arquivo supabase_schema.sql não encontrado.' });
 });
 
 app.get('*all', (req, res) => {

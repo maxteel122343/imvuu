@@ -1,6 +1,6 @@
 {
   "name": "checker partinervu",
-  "description": "Monitor e checker em tempo real de avatares do IMVU com rastreamento de status online/offline, histórico detalhado, notificações instantâneas e extração de dados reais de perfis e salas.",
+  "description": "Monitor e checker em tempo real de avatares do IMVU com isolamento e privacidade por usuário via Supabase, modo invisível, cenário 3D expandido com árvores e sofás interativos, danças sincronizadas articuladas de 1 minuto e balões de fala.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

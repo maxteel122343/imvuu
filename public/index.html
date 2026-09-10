@@ -4,9 +4,9 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>checker partinervu</title>
-	<meta name="description" content="Monitor e checker em tempo real de avatares do IMVU com rastreamento de status online/offline, histórico detalhado, notificações instantâneas e extração de dados reais de perfis e salas.">
+	<meta name="description" content="Monitor e checker em tempo real de avatares do IMVU com isolamento e privacidade por usuário via Supabase, modo invisível, cenário 3D expandido com árvores e sofás interativos, danças sincronizadas articuladas de 1 minuto e balões de fala.">
 	<meta property="og:title" content="checker partinervu">
-	<meta property="og:description" content="Monitor e checker em tempo real de avatares do IMVU com rastreamento de status online/offline, histórico detalhado, notificações instantâneas e extração de dados reais de perfis e salas.">
+	<meta property="og:description" content="Monitor e checker em tempo real de avatares do IMVU com isolamento e privacidade por usuário via Supabase, modo invisível, cenário 3D expandido com árvores e sofás interativos, danças sincronizadas articuladas de 1 minuto e balões de fala.">
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1498,13 +1498,25 @@
 
 		.canvas-3d-wrap {
 			width: 100%;
-			height: 420px;
+			height: 480px;
 			border-radius: 14px;
 			overflow: hidden;
 			background: radial-gradient(circle at center, #1e2433 0%, #0d1017 100%);
 			position: relative;
 			border: 1px solid var(--panel-border);
-			margin-bottom: 20px;
+			margin-bottom: 16px;
+			transition: all 0.3s ease;
+		}
+		.canvas-3d-wrap:fullscreen, .canvas-3d-wrap:-webkit-full-screen {
+			width: 100vw !important;
+			height: 100vh !important;
+			border-radius: 0 !important;
+			border: none !important;
+			margin: 0 !important;
+			position: fixed !important;
+			top: 0 !important;
+			left: 0 !important;
+			z-index: 99999 !important;
 		}
 		.canvas-3d-controls {
 			position: absolute;
@@ -1517,22 +1529,243 @@
 			pointer-events: none;
 			flex-wrap: wrap;
 			gap: 8px;
+			z-index: 10;
 		}
 		.canvas-ctrl-btn {
 			pointer-events: auto;
-			background: rgba(15, 23, 42, 0.8);
+			background: rgba(15, 23, 42, 0.85);
 			color: white;
 			border: 1px solid rgba(255, 255, 255, 0.18);
 			padding: 6px 12px;
 			border-radius: 8px;
-			font-size: 11px;
+			font-size: 11.5px;
 			font-weight: 600;
 			cursor: pointer;
-			backdrop-filter: blur(4px);
+			backdrop-filter: blur(8px);
 			transition: all 0.2s;
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
 		}
 		.canvas-ctrl-btn:hover {
 			background: var(--accent-purple);
+			border-color: var(--accent-purple);
+			box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
+		}
+
+		/* HUD de Mensagens no Canto Superior Esquerdo do Cenário 3D */
+		.scene3d-chat-hud {
+			position: absolute;
+			top: 14px;
+			left: 14px;
+			width: 290px;
+			max-width: calc(100% - 28px);
+			background: rgba(12, 16, 26, 0.86);
+			backdrop-filter: blur(12px);
+			border: 1px solid rgba(255, 255, 255, 0.12);
+			border-radius: 12px;
+			z-index: 20;
+			box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+			transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+		}
+		.scene3d-chat-hud-header {
+			padding: 8px 12px;
+			background: rgba(255, 255, 255, 0.05);
+			border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			font-size: 11.5px;
+			font-weight: 700;
+			color: #cbd5e1;
+		}
+		.scene3d-chat-hud-body {
+			max-height: 150px;
+			overflow-y: auto;
+			padding: 8px 10px;
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			font-size: 11.5px;
+		}
+		.scene3d-chat-hud-item {
+			background: rgba(255, 255, 255, 0.05);
+			padding: 5px 8px;
+			border-radius: 6px;
+			line-height: 1.35;
+			word-break: break-word;
+		}
+		.scene3d-chat-hud-author {
+			font-weight: 800;
+			color: #c084fc;
+			margin-right: 4px;
+		}
+		.scene3d-chat-hud-time {
+			font-size: 9.5px;
+			color: #64748b;
+			float: right;
+			margin-left: 6px;
+		}
+
+		/* Seletor estilizado para danças e teleporte */
+		.scene3d-styled-select {
+			background: #181b26;
+			border: 1px solid rgba(255, 255, 255, 0.15);
+			color: #f1f5f9;
+			padding: 7px 12px;
+			border-radius: 8px;
+			font-size: 12px;
+			font-weight: 600;
+			outline: none;
+			cursor: pointer;
+			transition: all 0.2s;
+		}
+		.scene3d-styled-select:hover, .scene3d-styled-select:focus {
+			border-color: var(--accent-purple);
+			box-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+		}
+		.scene3d-styled-select optgroup {
+			background: #0f121a;
+			color: #a78bfa;
+			font-weight: 700;
+		}
+		.scene3d-styled-select option {
+			background: #181b26;
+			color: #f1f5f9;
+			font-weight: normal;
+			padding: 4px 8px;
+		}
+
+		/* Estilos para Modal Supabase & SQL */
+		.modal-backdrop {
+			position: fixed;
+			inset: 0;
+			background: rgba(4, 6, 12, 0.85);
+			backdrop-filter: blur(8px);
+			z-index: 9999;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 16px;
+		}
+		.modal-box {
+			background: #10141f;
+			border: 1px solid rgba(139, 92, 246, 0.35);
+			border-radius: 16px;
+			box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 30px rgba(139, 92, 246, 0.15);
+			width: 100%;
+			max-width: 820px;
+			max-height: 90vh;
+			display: flex;
+			flex-direction: column;
+			overflow: hidden;
+		}
+		.modal-header {
+			padding: 16px 22px;
+			background: #161b29;
+			border-bottom: 1px solid var(--panel-border);
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+		.modal-body {
+			padding: 20px 22px;
+			overflow-y: auto;
+			flex: 1;
+		}
+		.sql-code-block {
+			background: #090c13;
+			border: 1px solid rgba(255, 255, 255, 0.08);
+			border-radius: 10px;
+			color: #86efac;
+			font-family: 'Consolas', 'Courier New', monospace;
+			font-size: 11.5px;
+			padding: 14px;
+			white-space: pre;
+			overflow-x: auto;
+			max-height: 380px;
+		}
+
+		/* Scrubber de Danças de 1 Minuto */
+		.dance-timeline-wrap {
+			background: #111420;
+			border: 1px solid var(--panel-border);
+			border-radius: 10px;
+			padding: 10px 14px;
+			margin-bottom: 12px;
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			flex-wrap: wrap;
+		}
+		.dance-progress-track {
+			flex: 1;
+			min-width: 160px;
+			height: 8px;
+			background: rgba(255, 255, 255, 0.08);
+			border-radius: 4px;
+			overflow: hidden;
+			position: relative;
+			cursor: pointer;
+		}
+		.dance-progress-fill {
+			height: 100%;
+			background: linear-gradient(90deg, #ec4899, #8b5cf6, #38bdf8);
+			width: 0%;
+			border-radius: 4px;
+			transition: width 0.1s linear;
+		}
+
+		/* Botão de Visibilidade / Ghost Mode */
+		.visibility-pill-btn {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 5px 12px;
+			border-radius: 20px;
+			font-size: 11.5px;
+			font-weight: 700;
+			cursor: pointer;
+			transition: all 0.2s;
+			border: 1px solid rgba(255, 255, 255, 0.15);
+		}
+		.visibility-pill-btn.visible-mode {
+			background: rgba(34, 197, 94, 0.18);
+			border-color: #22c55e;
+			color: #86efac;
+		}
+		.visibility-pill-btn.ghost-mode {
+			background: rgba(234, 179, 8, 0.18);
+			border-color: #eab308;
+			color: #fde047;
+		}
+
+		/* 3D Quick Chat Box */
+		.scene3d-chat-strip {
+			display: flex;
+			gap: 8px;
+			align-items: center;
+			background: #111420;
+			border: 1px solid var(--panel-border);
+			border-radius: 10px;
+			padding: 8px 12px;
+			margin-top: 10px;
+		}
+		.scene3d-chat-input {
+			flex: 1;
+			background: #090c13;
+			border: 1px solid rgba(255, 255, 255, 0.12);
+			border-radius: 6px;
+			padding: 7px 12px;
+			color: #f8fafc;
+			font-size: 12.5px;
+			outline: none;
+		}
+		.scene3d-chat-input:focus {
+			border-color: var(--accent-purple);
 		}
 
 		@media (max-width: 860px) {
@@ -1570,9 +1803,9 @@
 			</div>
 
 			<div class="header-actions">
-				<div id="headerMonitorStats" style="font-size: 12px; color: #cbd5e1; background: #161922; border: 1px solid var(--panel-border); padding: 6px 12px; border-radius: 8px;">
-					🟢 Checagem Ativa
-				</div>
+				<button class="visibility-pill-btn visible-mode" id="btnHeaderVisibility" onclick="toggleVisibilityMode()" title="Alternar entre Visível no App e Modo Oculto/Fantasma">
+					👁️ <span id="headerVisibilityText">Visível no App 🟢</span>
+				</button>
 				<button class="btn-header-action" onclick="toggleTheme()" id="btnThemeToggle" title="Alternar entre modo escuro e claro">
 					☀️ <span id="themeToggleText">Modo Claro</span>
 				</button>
@@ -1593,7 +1826,7 @@
 			<form id="loginForm">
 				<div class="form-group">
 					<label>Seu Nome de Usuário IMVU</label>
-					<input type="text" id="username" placeholder="Ex: Brenin ou seu avatar" required>
+					<input type="text" id="username" placeholder="Digite seu nome de usuário" required>
 				</div>
 				<div class="form-group">
 					<label>Senha IMVU</label>
@@ -1638,7 +1871,7 @@
 						<span id="trackerCountBadge" class="badge-notif" style="background: var(--accent-purple);">0</span>
 					</button>
 					<button class="nav-item" onclick="switchTab('outfits')">
-						<span>👗 Outfits & Itens 3D</span>
+						<span>👗 Cenário 3D & Danças</span>
 					</button>
 					<button class="nav-item" onclick="switchTab('messages')">
 						<span>💬 Mensagens</span>
@@ -1692,7 +1925,7 @@
 						<div class="checker-inputs-grid">
 							<div>
 								<label style="font-size: 12px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">Nome de Usuário no IMVU (@handle)</label>
-								<input type="text" id="trackInputUsername" placeholder="Ex: Brenin, AckllaOliveira, etc." style="width: 100%; background: #0f1218; border: 1px solid rgba(255,255,255,0.1); padding: 10px 14px; border-radius: 8px; color: white; font-size: 13.5px; outline: none;">
+								<input type="text" id="trackInputUsername" placeholder="Digite o nome de usuário IMVU para monitorar" style="width: 100%; background: #0f1218; border: 1px solid rgba(255,255,255,0.1); padding: 10px 14px; border-radius: 8px; color: white; font-size: 13.5px; outline: none;">
 							</div>
 
 							<div>
@@ -1760,38 +1993,91 @@
 				<div id="tab-outfits" class="tab-content">
 					<div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
 						<div>
-							<h2 style="font-size: 20px; font-weight: 800;">👗 Outfits & Avatar 3D Articulado</h2>
+							<h2 style="font-size: 20px; font-weight: 800;">👗 Cenário 3D Amplo, Sofás & Danças de 1 Minuto</h2>
 							<p style="font-size: 12.5px; color: var(--text-secondary); margin-top: 2px;">
-								Cinemática com articulações baseadas em JSON (Andar, Sentar, Robô, Michael Jackson, Fitness). Clique em qualquer ponto do chão 3D para o avatar caminhar até lá!
+								Cenário 3D expandido com árvores, praça e sofás/bancos interativos com múltiplos lugares. Danças complexas de 1 minuto, balão de fala estilo quadrinhos e HUD integrado.
 							</p>
+						</div>
+						<div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+							<button class="visibility-pill-btn visible-mode" id="btn3dVisibility" onclick="toggleVisibilityMode()">
+								👁️ <span id="btn3dVisibilityText">Modo Visível no 3D 🟢</span>
+							</button>
+							<span id="online3dBadge" style="font-size: 11px; background: rgba(139, 92, 246, 0.2); border: 1px solid #8b5cf6; color: #d8b4fe; padding: 4px 10px; border-radius: 8px;">
+								👥 1 no Cenário
+							</span>
 						</div>
 					</div>
 
-					<div class="search-header-bar" style="margin-bottom: 12px;">
-						<input type="text" id="outfitSearchInput" placeholder="Digite o nome de usuário IMVU (ex: Brenin, AckllaOliveira...)" onkeyup="if(event.key==='Enter') loadOutfitsForUser()">
-						<button class="btn-primary" onclick="loadOutfitsForUser()" style="width: auto; padding: 10px 20px;">Extrair Outfits Reais 👗</button>
+					<!-- Barra de Danças & Poses e Teleporte (Seletores Compactos anti-poluição visual) -->
+					<div class="poses-selector-bar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+						<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+							<!-- Seletor de Coreografia / Pose -->
+							<div style="display: flex; align-items: center; gap: 6px;">
+								<label for="dancePoseSelect" style="font-size: 12px; font-weight: 800; color: #cbd5e1; white-space: nowrap;">
+									💃 Coreografia / Poses:
+								</label>
+								<select id="dancePoseSelect" onchange="setAvatarPose(this.value)" class="scene3d-styled-select">
+									<optgroup label="💃 Danças de 1 Minuto (Coreografia Completa)">
+										<option value="passinho_funk" selected>💃 Passinho Funk BR (1 Min)</option>
+										<option value="kpop_master">🕺 K-Pop Urban (1 Min)</option>
+										<option value="vogue_imvu">✨ Vogue IMVU (1 Min)</option>
+										<option value="electro_wave">⚡ Electro Wave (1 Min)</option>
+										<option value="sync_groove">👯 Dança em Dupla (1 Min)</option>
+									</optgroup>
+									<optgroup label="🧍 Poses & Movimentos">
+										<option value="idle">🧍 Parado (Idle Suave)</option>
+										<option value="walk">🚶 Andar Livre</option>
+										<option value="sit">🛋️ Sentar no Sofá / Banco</option>
+										<option value="robot">🤖 Robô</option>
+										<option value="michael_jackson">🕺 Michael Jackson</option>
+										<option value="fitness">🏋️ Fitness</option>
+									</optgroup>
+								</select>
+							</div>
+
+							<!-- Seletor de Teleporte para Locais -->
+							<div style="display: flex; align-items: center; gap: 6px;">
+								<label for="teleportLocationSelect" style="font-size: 12px; font-weight: 800; color: #cbd5e1; white-space: nowrap;">
+									📍 Ir para Local:
+								</label>
+								<select id="teleportLocationSelect" onchange="handleTeleportSelect(this)" class="scene3d-styled-select">
+									<option value="">Selecione um ponto no mapa...</option>
+									<option value="0,0,Centro da Pista">🔄 Centro da Pista (0, 0)</option>
+									<option value="0,-18,Palco DJ Distante">🎧 Palco DJ (0, -18)</option>
+									<option value="-14,-8,Sofás VIP Lounge">🛋️ Sofás VIP Lounge (-14, -8)</option>
+									<option value="14,14,Bosque Noturno">🌳 Bosque Noturno (14, 14)</option>
+									<option value="-18,18,Mirante Distante">🔭 Mirante Distante (-18, 18)</option>
+								</select>
+							</div>
+						</div>
+
+						<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+							<button class="tag-btn" onclick="toggleSitNearestSofa()" id="btnSitAction" style="color: #67e8f9; border-color: rgba(6, 182, 212, 0.4); font-size: 11.5px; padding: 6px 12px;">
+								🛋️ <span id="btnSitActionText">Sentar no Sofá</span>
+							</button>
+							<button class="tag-btn" onclick="syncDanceWithOthers()" style="color: #f472b6; border-color: rgba(236, 72, 153, 0.4); font-size: 11.5px; padding: 6px 12px;">
+								👯 Dançar Juntos
+							</button>
+							<button class="tag-btn" onclick="toggleJsonEditor()" style="font-size: 11px; padding: 6px 10px;">
+								📝 JSON Poses
+							</button>
+						</div>
 					</div>
 
-					<!-- Atalhos rápidos para avatares monitorados -->
-					<div id="outfitsQuickAvatars" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 14px;">
-						<span style="font-size: 11.5px; color: var(--text-muted); font-weight: 700;">Avatares rápidos:</span>
-						<!-- Injetado dinamicamente -->
-					</div>
-
-					<!-- Barra de Poses e Danças via JSON -->
-					<div class="poses-selector-bar">
-						<span style="font-size: 12px; font-weight: 800; color: #cbd5e1; display: flex; align-items: center; gap: 4px;">
-							🎭 Poses & Danças JSON:
-						</span>
-						<button class="pose-btn active" onclick="setAvatarPose('idle')" id="btnPose-idle">🧍 Parado</button>
-						<button class="pose-btn" onclick="setAvatarPose('walk')" id="btnPose-walk">🚶 Andar</button>
-						<button class="pose-btn" onclick="setAvatarPose('sit')" id="btnPose-sit">🪑 Sentar</button>
-						<button class="pose-btn" onclick="setAvatarPose('robot')" id="btnPose-robot">🤖 Dança do Robô</button>
-						<button class="pose-btn" onclick="setAvatarPose('michael_jackson')" id="btnPose-michael_jackson">🕺 Michael Jackson</button>
-						<button class="pose-btn" onclick="setAvatarPose('fitness')" id="btnPose-fitness">🏋️ Fitness</button>
-						<button class="pose-btn" onclick="toggleJsonEditor()" style="margin-left: auto; background: rgba(139, 92, 246, 0.2); border-color: #8b5cf6; color: #d8b4fe;">
-							📝 Ver / Editar JSON de Poses
+					<!-- Timeline Scrubber da Coreografia de 1 Minuto -->
+					<div class="dance-timeline-wrap">
+						<button class="tag-btn" onclick="toggleDancePlayPause()" id="btnDancePlayPause" style="font-size: 12px; padding: 4px 10px;">
+							⏸️ Pausar
 						</button>
+						<div style="font-family: monospace; font-size: 12px; font-weight: 700; color: #38bdf8;" id="danceTimerDisplay">
+							⏱️ 00:00 / 01:00
+						</div>
+						<div class="dance-progress-track" id="danceProgressTrack" onclick="seekDanceTimeline(event)">
+							<div class="dance-progress-fill" id="danceProgressFill"></div>
+						</div>
+						<span id="dancePhaseBadge" style="font-size: 11.5px; font-weight: 700; background: rgba(236, 72, 153, 0.2); border: 1px solid rgba(236, 72, 153, 0.4); color: #f472b6; padding: 3px 10px; border-radius: 6px;">
+							Fase 1: Ombros Sincopados & Groove
+						</span>
 					</div>
 
 					<!-- Editor / Visualizador do JSON das Poses -->
@@ -1806,38 +2092,98 @@
 						<textarea id="poseJsonTextarea" style="width: 100%; height: 160px; background: #090c12; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #86efac; font-family: monospace; font-size: 12px; padding: 10px; resize: vertical; outline: none;"></textarea>
 					</div>
 
-					<!-- Dica de Click to Move -->
-					<div style="background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 10px; padding: 8px 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-						<span style="font-size: 12px; color: #86efac; display: flex; align-items: center; gap: 6px;">
-							🎯 <strong>Click-to-Move 3D:</strong> Clique em qualquer lugar na plataforma/chão 3D para o avatar andar até o ponto marcado!
-						</span>
-						<span id="clickToMoveStatus" style="font-size: 11.5px; color: #cbd5e1; font-family: monospace;">Aguardando clique no chão...</span>
-					</div>
-
-					<!-- Visualizador 3D Interativo -->
+					<!-- Visualizador 3D Interativo Integrado com HUD de Mensagens e Controles -->
 					<div class="canvas-3d-wrap" id="outfit3dContainer">
 						<canvas id="outfit3dCanvas" style="width: 100%; height: 100%; display: block; cursor: crosshair;"></canvas>
+
+						<!-- HUD de Mensagens no Canto Superior Esquerdo do Cenário 3D -->
+						<div id="scene3dChatHud" class="scene3d-chat-hud">
+							<div class="scene3d-chat-hud-header">
+								<span style="display: flex; align-items: center; gap: 6px;">
+									💬 <span>Mensagens no Cenário 3D</span>
+								</span>
+								<button onclick="toggle3dChatHud()" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 12px; padding: 2px 6px;" title="Ocultar HUD de Mensagens">
+									◀ Ocultar
+								</button>
+							</div>
+							<div id="scene3dChatHudBody" class="scene3d-chat-hud-body">
+								<div class="scene3d-chat-hud-item" style="color: #94a3b8; font-style: italic;">
+									Bem-vindo ao cenário 3D! Mensagens digitadas no balão aparecem aqui em tempo real.
+								</div>
+							</div>
+						</div>
+
+						<!-- Botão flutuante para reabrir o HUD quando ocultado -->
+						<button id="btnOpenChatHud" onclick="toggle3dChatHud()" style="display: none; position: absolute; top: 14px; left: 14px; z-index: 22; background: rgba(12, 16, 26, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.25); color: #c4b5fd; padding: 6px 14px; border-radius: 20px; font-size: 11.5px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.5);">
+							💬 Chat 3D <span id="chatHudBadge" style="background: #ec4899; color: white; border-radius: 10px; padding: 1px 6px; font-size: 9.5px; margin-left: 4px; display: none;">0</span>
+						</button>
+
+						<!-- Barra de Controles Inferior do 3D -->
 						<div class="canvas-3d-controls">
-							<div style="display: flex; gap: 6px;">
+							<div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+								<button class="canvas-ctrl-btn" onclick="toggleCameraFollow()" id="btnCameraFollow" title="A câmera acompanha automaticamente o avatar enquanto ele caminha">
+									🎥 Seguir: Off
+								</button>
+								<button class="canvas-ctrl-btn" onclick="toggle3dFullscreen()" id="btn3dFullscreen" title="Expandir o cenário em tela cheia imersiva">
+									⛶ Tela Cheia
+								</button>
+								<button class="canvas-ctrl-btn" onclick="toggle3dChatHud()" id="btnToggleChatHud" title="Mostrar ou ocultar o painel de mensagens no canto">
+									💬 Chat HUD
+								</button>
 								<button class="canvas-ctrl-btn" onclick="toggle3dWireframe()" id="btn3dWireframe">🌐 Wireframe: Off</button>
 								<button class="canvas-ctrl-btn" onclick="toggle3dRotation()" id="btn3dAutoRotate">🔄 Rotação: Off</button>
 								<button class="canvas-ctrl-btn" onclick="reset3dCamera()">🎯 Reset Câmera</button>
 							</div>
-							<span id="canvas3dLabel" style="font-size: 11px; color: #cbd5e1; background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 6px;">
-								Arraste para girar • Scroll para zoom • Clique no chão para andar
+							<span id="canvas3dLabel" style="font-size: 11px; color: #cbd5e1; background: rgba(0,0,0,0.65); padding: 5px 12px; border-radius: 6px; backdrop-filter: blur(4px);">
+								Arraste para girar • Scroll para zoom • Clique no chão para andar ou sofás para sentar
 							</span>
 						</div>
 					</div>
 
-					<!-- Barra de resumo do look extraído -->
-					<div id="outfitSummaryBox" style="display: none; background: var(--bg-card); border: 1px solid var(--panel-border); padding: 14px 18px; border-radius: 12px; margin-bottom: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-						<!-- Dados reais do look -->
+					<!-- Bate-papo com Balão de Quadrinhos no 3D -->
+					<div class="scene3d-chat-strip" style="margin-bottom: 24px;">
+						<span style="font-size: 12px; font-weight: 700; color: #a78bfa; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
+							💬 Balão 3D:
+						</span>
+						<input type="text" id="scene3dChatInput" class="scene3d-chat-input" placeholder="Digite uma fala para aparecer no balão flutuante estilo quadrinhos acima da cabeça..." onkeyup="if(event.key==='Enter') send3dChatMessage()">
+						<button class="btn-primary" onclick="send3dChatMessage()" style="width: auto; padding: 7px 16px; font-size: 12px;">
+							Falar no Cenário 🗯️
+						</button>
 					</div>
 
-					<!-- Grade de Produtos / Peças do Look Extraído -->
-					<div id="outfitProductsArea">
-						<div style="text-align: center; padding: 30px; color: var(--text-secondary); background: var(--bg-card); border-radius: 12px; border: 1px dashed var(--panel-border);">
-							Digite o nome de um avatar acima ou clique nos atalhos para extrair e inspecionar todas as roupas e itens equipados.
+					<!-- =========================================================
+					     SEÇÃO: INSPEÇÃO DE ITENS & OUTFITS DO AVATAR IMVU
+					     (Reorganizado abaixo do 3D junto ao resumo e dados do avatar)
+					     ========================================================= -->
+					<div style="background: var(--bg-card); border: 1px solid var(--panel-border); border-radius: 14px; padding: 18px 20px; margin-bottom: 20px;">
+						<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+							<div>
+								<h3 style="font-size: 16px; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+									👗 Inspecionar Itens & Outfits do Avatar IMVU
+								</h3>
+								<p style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
+									Extraia roupas, calçados, resizers, cabelos e acessórios equipados na conta IMVU com links diretos
+								</p>
+							</div>
+						</div>
+
+						<div class="search-header-bar" style="margin-bottom: 14px;">
+							<input type="text" id="outfitSearchInput" placeholder="Digite o nome de usuário IMVU para inspecionar (ex: Guest_Kngold, Luna_Star)..." onkeyup="if(event.key==='Enter') loadOutfitsForUser()">
+							<button class="btn-primary" onclick="loadOutfitsForUser()" style="width: auto; padding: 10px 22px;">Extrair Outfits Reais 👗</button>
+						</div>
+
+						<div id="outfitsQuickAvatars" style="display: none; margin-bottom: 12px;"></div>
+
+						<!-- Barra de resumo do look extraído -->
+						<div id="outfitSummaryBox" style="display: none; background: #131620; border: 1px solid var(--panel-border); padding: 14px 18px; border-radius: 12px; margin-bottom: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+							<!-- Dados reais do look -->
+						</div>
+
+						<!-- Grade de Produtos / Peças do Look Extraído -->
+						<div id="outfitProductsArea">
+							<div style="text-align: center; padding: 30px; color: var(--text-secondary); background: #11141c; border-radius: 12px; border: 1px dashed var(--panel-border);">
+								Digite o nome de um avatar acima para extrair e inspecionar todas as roupas e itens equipados.
+							</div>
 						</div>
 					</div>
 				</div>
@@ -1950,7 +2296,7 @@
 					<!-- SUBABA 1: EXPLORAR COM FILTROS (CONFORME IMAGENS 4 E 5) -->
 					<div id="searchSubtabExploreView" style="display: block;">
 						<div class="search-header-bar" style="margin-bottom: 12px; gap: 8px;">
-							<input type="text" id="exploreSearchInput" placeholder="Pesquisar avatar por nome (ex: Gabi, Brenin, Kngold, Acklla)..." onkeyup="if(event.key==='Enter') executeExploreSearchIMVU(); else filterExploreAvatars();" style="flex: 1;">
+							<input type="text" id="exploreSearchInput" placeholder="Pesquisar avatar por nome (ex: Luna, Maya, Alex, Chloe)..." onkeyup="if(event.key==='Enter') executeExploreSearchIMVU(); else filterExploreAvatars();" style="flex: 1;">
 							<button class="btn-primary" onclick="executeExploreSearchIMVU()" style="width: auto; padding: 10px 18px; white-space: nowrap;">Buscar no IMVU 🔎</button>
 						</div>
 
@@ -1972,7 +2318,7 @@
 					<!-- SUBABA 2: BUSCA DIRETA -->
 					<div id="searchSubtabDirectView" style="display: none;">
 						<div class="search-header-bar">
-							<input type="text" id="userSearchInput" placeholder="Digite o nome de usuário exato no IMVU (ex: Brenin, AckllaOliveira, Guest_Kngold...)" onkeyup="if(event.key==='Enter') executeUserSearch()">
+							<input type="text" id="userSearchInput" placeholder="Digite o nome de usuário exato no IMVU..." onkeyup="if(event.key==='Enter') executeUserSearch()">
 							<button class="btn-primary" onclick="executeUserSearch()" style="width: auto; padding: 10px 20px;">Buscar no IMVU 🔎</button>
 						</div>
 
@@ -1997,16 +2343,26 @@
 
 					<!-- Subabas de amigos -->
 					<div class="subtabs-bar">
-						<button class="subtab-btn active" onclick="switchFriendsSubtab('imvu')" id="btnFriendSubtab-imvu">
-							👥 Meus Amigos (<span id="friendsCountBadge">0</span>)
+						<button class="subtab-btn active" onclick="switchFriendsSubtab('app_friends')" id="btnFriendSubtab-app_friends">
+							👥 Amigos do App (<span id="appFriendsCountBadge">0</span>)
+						</button>
+						<button class="subtab-btn" onclick="switchFriendsSubtab('imvu')" id="btnFriendSubtab-imvu">
+							👤 Amigos IMVU (<span id="friendsCountBadge">0</span>)
 						</button>
 						<button class="subtab-btn" onclick="switchFriendsSubtab('app')" id="btnFriendSubtab-app">
-							🟢 Conectados no Checker PartnerVU (<span id="appUsersCountBadge">0</span>)
+							🟢 Todos Online no App (<span id="appUsersCountBadge">0</span>)
 						</button>
 					</div>
 
+					<!-- Adicionar Novo Amigo do App -->
+					<div id="addAppFriendRow" style="background: var(--bg-card); border: 1px solid var(--panel-border); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+						<span style="font-size: 12px; font-weight: 700; color: #a78bfa;">➕ Adicionar Amigo do App:</span>
+						<input type="text" id="addFriendUsernameInput" placeholder="Nome de usuário no Checker PartnerVU..." style="flex: 1; min-width: 200px; background: #0b0e17; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 12px; color: #fff; font-size: 12.5px; outline: none;">
+						<button class="btn-primary" onclick="addAppFriend()" style="width: auto; padding: 6px 14px; font-size: 12px;">Adicionar Amigo ✨</button>
+					</div>
+
 					<!-- Filtros de amigos IMVU -->
-					<div id="friendsFiltersRow" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;">
+					<div id="friendsFiltersRow" style="display: none; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;">
 						<input type="text" id="filterFriendsInput" placeholder="Filtrar por nome de amigo..." onkeyup="filterFriendsList()" style="flex: 1; max-width: 320px; background: var(--bg-card); border: 1px solid var(--panel-border); padding: 8px 12px; border-radius: 8px; color: var(--text-primary); font-size: 12.5px; outline: none;">
 						<button class="tag-btn active" onclick="setFriendsFilter('all')" id="btnFriendFilter-all">Todos</button>
 						<button class="tag-btn" onclick="setFriendsFilter('online')" id="btnFriendFilter-online">🟢 Online</button>
@@ -2023,21 +2379,91 @@
 
 	</div>
 
+	<!-- MODAL: SUPABASE & SQL SCHEMA -->
+	<div id="supabaseSqlModal" class="modal-backdrop" style="display: none;">
+		<div class="modal-box">
+			<div class="modal-header">
+				<div style="display: flex; align-items: center; gap: 10px;">
+					<div style="background: rgba(139, 92, 246, 0.2); border: 1px solid #8b5cf6; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px;">💾</div>
+					<div>
+						<h3 style="font-size: 16px; font-weight: 800; color: #fff;">Esquema Supabase & Isolamento de Dados SQL</h3>
+						<p style="font-size: 11.5px; color: #94a3b8;">Projeto: <code style="color: #a78bfa;">https://enqntyzoaftatfhovsxw.supabase.co</code></p>
+					</div>
+				</div>
+				<button class="tag-btn" onclick="closeSupabaseModal()" style="font-size: 12px; padding: 4px 10px;">✕ Fechar</button>
+			</div>
+			<div class="modal-body">
+				<!-- Status das 6 tabelas -->
+				<div style="background: #161b29; border: 1px solid var(--panel-border); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;">
+					<div style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+						<span>Tabelas de Isolamento e Persistência Configuradas:</span>
+						<span style="color: #86efac; font-size: 11px;">🟢 Conexão Supabase Pronta</span>
+					</div>
+					<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; font-size: 11px;">
+						<div style="background: #0d111a; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+							<span>📌 user_checker_targets</span> <span style="color: #86efac;">✓ Isolado</span>
+						</div>
+						<div style="background: #0d111a; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+							<span>🎪 user_saved_rooms</span> <span style="color: #86efac;">✓ Isolado</span>
+						</div>
+						<div style="background: #0d111a; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+							<span>⚙️ user_app_settings</span> <span style="color: #86efac;">✓ Ghost Mode</span>
+						</div>
+						<div style="background: #0d111a; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+							<span>👥 user_app_friends</span> <span style="color: #86efac;">✓ Amigos App</span>
+						</div>
+						<div style="background: #0d111a; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+							<span>💬 user_conversations_messages</span> <span style="color: #86efac;">✓ Privado</span>
+						</div>
+						<div style="background: #0d111a; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+							<span>💃 user_3d_presence</span> <span style="color: #86efac;">✓ 3D Sync</span>
+						</div>
+					</div>
+				</div>
+
+				<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+					<span style="font-size: 12px; font-weight: 700; color: #a78bfa;">Código SQL para Executar no Supabase SQL Editor:</span>
+					<button class="btn-primary" onclick="copySupabaseSql()" id="btnCopySql" style="width: auto; padding: 5px 14px; font-size: 11.5px;">📋 Copiar Código SQL Completo</button>
+				</div>
+				<pre id="supabaseSqlPre" class="sql-code-block">-- Carregando SQL...</pre>
+			</div>
+		</div>
+	</div>
+
+	<script src="/js/scene3d_features.js"></script>
 	<script>
 		// =========================================================
 		// ESTADO GLOBAL DA APLICAÇÃO
 		// =========================================================
 		let activeUser = localStorage.getItem('imvu_active_user') || '';
+		window.activeUser = activeUser || 'Visitante_Checker';
 		let trackedCards = JSON.parse(localStorage.getItem('partnervu_tracked_cards') || '[]');
 		let currentChatUser = '';
 		let pollingInterval = null;
 
-		// Fallback SVG Avatar para quando o usuário não tiver foto pública no IMVU
-		const DEFAULT_AVATAR_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E`;
+		// Fallback SVG Avatar gerado dinamicamente para avatares sem foto ou foto quebrada
+		function getAvatarFallback(name = 'Avatar') {
+			const clean = (name || 'VU').replace(/[@_\W]/g, '').trim();
+			const initials = (clean.slice(0, 2) || 'VU').toUpperCase();
+			const palette = [
+				['#8b5cf6', '#6366f1'],
+				['#ec4899', '#f43f5e'],
+				['#3b82f6', '#06b6d4'],
+				['#10b981', '#059669'],
+				['#f59e0b', '#d97706'],
+				['#a855f7', '#7c3aed']
+			];
+			let hash = 0;
+			for (let i = 0; i < name.length; i++) hash = (hash << 5) - hash + name.charCodeAt(i);
+			const [c1, c2] = palette[Math.abs(hash) % palette.length];
+			return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='${encodeURIComponent(c1)}'/%3E%3Cstop offset='100%25' stop-color='${encodeURIComponent(c2)}'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='20' fill='url(%23g)'/%3E%3Ccircle cx='50' cy='38' r='20' fill='white' opacity='0.9'/%3E%3Cpath d='M20 85c0-18 13-28 30-28s30 10 30 28z' fill='white' opacity='0.9'/%3E%3Ctext x='50' y='92' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='14' fill='white'%3E${initials}%3C/text%3E%3C/svg%3E`;
+		}
+
+		const DEFAULT_AVATAR_SVG = getAvatarFallback('VU');
 
 		// Helper para contornar bloqueio de Hotlinking / Referer do CDN do IMVU
-		function getSafeImageUrl(url) {
-			if (!url) return DEFAULT_AVATAR_SVG;
+		function getSafeImageUrl(url, name = 'Avatar') {
+			if (!url) return getAvatarFallback(name);
 			if (url.startsWith('data:') || url.startsWith('/')) return url;
 			if (url.includes('imvu.com')) {
 				return `/api/image-proxy?url=${encodeURIComponent(url)}`;
@@ -2145,34 +2571,9 @@
 				initLoggedInUser(activeUser);
 			}
 
-			// Se não há nenhum card salvo inicialmente, adicionar exemplo real para o usuário ver na hora
-			if (trackedCards.length === 0) {
-				trackedCards = [
-					{
-						username: 'Brenin',
-						displayName: 'Brenin',
-						customTag: 'Namorador 🔥',
-						notifyOnline: true,
-						notifyOffline: true,
-						isOnline: false,
-						lastChecked: new Date().toISOString(),
-						avatarImage: 'https://webasset-akm.imvu.com/resized_image/duserimages/s300x300/tpreserve/i%2Fcatalog%2Fincludes%2Fmodules%2Fphpbb2%2Fimages%2Favatars%2F252190496_25209763368218b4337a11.png',
-						isVip: true,
-						isAp: false,
-						isCreator: true,
-						isAgeVerified: true,
-						country: 'BR',
-						age: 26,
-						registered: '18 de setembro de 2019',
-						interests: 'Instagram: brenin.016 • My Shop: Brenin',
-						imvuProfileUrl: 'https://pt.imvu.com/next/av/Brenin/',
-						history: [
-							{ type: 'offline', text: 'Status verificado na base oficial do IMVU', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-						]
-					}
-				];
-				saveTrackedCards();
-			}
+			// Remover Brenin de qualquer estado herdado conforme instrução do usuário
+			trackedCards = (trackedCards || []).filter(c => c && c.username && c.username.toLowerCase() !== 'brenin');
+			saveTrackedCards();
 
 			renderTrackedCards();
 			startBackgroundChecker();
@@ -2235,17 +2636,45 @@
 			}).catch(() => {});
 		}
 
+		async function loadUserScopedTrackedCards(username) {
+			const userScope = (username || 'visitante_checker').toLowerCase();
+			const stored = localStorage.getItem(`partnervu_tracked_cards_${userScope}`);
+			if (stored) {
+				try {
+					trackedCards = JSON.parse(stored);
+					renderTrackedCards();
+				} catch (e) {}
+			} else {
+				trackedCards = [];
+				renderTrackedCards();
+			}
+
+			// Sincronizar da base de dados isolada no servidor
+			try {
+				const res = await fetch('/api/checker/cards', {
+					headers: { 'x-active-user': username }
+				});
+				const json = await res.json();
+				if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+					trackedCards = json.data;
+					localStorage.setItem(`partnervu_tracked_cards_${userScope}`, JSON.stringify(trackedCards));
+					renderTrackedCards();
+				}
+			} catch (e) {}
+		}
+
 		function initLoggedInUser(username) {
+			window.activeUser = username;
 			document.getElementById('loginCard').style.display = 'none';
 			document.getElementById('dashboardLayout').style.display = 'grid';
 
 			document.getElementById('sideName').textContent = username;
 			document.getElementById('sideUsername').textContent = `@${username}`;
 
-			const cachedAvatar = localStorage.getItem('imvu_user_avatar');
+			const cachedAvatar = localStorage.getItem(`imvu_user_avatar_${username.toLowerCase()}`) || localStorage.getItem('imvu_user_avatar');
 			if (cachedAvatar) {
 				const sideAvatar = document.getElementById('sideAvatar');
-				if (sideAvatar) sideAvatar.src = getSafeImageUrl(cachedAvatar);
+				if (sideAvatar) sideAvatar.src = getSafeImageUrl(cachedAvatar, username);
 			}
 			fetchUserAvatar(username);
 
@@ -2253,7 +2682,21 @@
 			sendAppHeartbeat();
 			setInterval(sendAppHeartbeat, 15000);
 
-			renderTrackedCards();
+			// Garantir visibilidade imediata no mundo 3D como avatar ao entrar
+			window.isGhostMode = false;
+			const btn3d = document.getElementById('btn3dVisibility');
+			const btn3dText = document.getElementById('btn3dVisibilityText');
+			if (btn3d) btn3d.className = 'visibility-pill-btn visible-mode';
+			if (btn3dText) btn3dText.textContent = 'Modo Visível no 3D 🟢';
+
+			// Inicializar cenário 3D e loop multiplayer imediatamente
+			init3DViewer();
+			if (scene3d && window.start3dMultiplayerLoop) {
+				window.start3dMultiplayerLoop(scene3d);
+			}
+
+			// Carregar cards estritamente deste usuário
+			loadUserScopedTrackedCards(username);
 			loadRooms();
 			updateOutfitsQuickAvatars();
 		}
@@ -2313,7 +2756,7 @@
 				updateOutfitsQuickAvatars();
 				const currentInput = document.getElementById('outfitSearchInput').value.trim();
 				if (!currentInput && (activeUser || trackedCards.length > 0)) {
-					const initialUser = (activeUser && activeUser !== 'Visitante_Checker') ? activeUser : (trackedCards[0]?.username || 'Brenin');
+					const initialUser = (activeUser && activeUser !== 'Visitante_Checker') ? activeUser : (trackedCards[0]?.username || 'Luna_Star');
 					document.getElementById('outfitSearchInput').value = initialUser;
 					loadOutfitsForUser(initialUser);
 				}
@@ -2328,8 +2771,30 @@
 		// LÓGICA DO CHECKER PARTNERVU (MONITOR ONLINE/OFFLINE)
 		// =========================================================
 		function saveTrackedCards() {
+			const userScope = (activeUser || 'visitante_checker').toLowerCase();
+			localStorage.setItem(`partnervu_tracked_cards_${userScope}`, JSON.stringify(trackedCards));
 			localStorage.setItem('partnervu_tracked_cards', JSON.stringify(trackedCards));
 			updateMonitorStatsBadge();
+
+			// Sincronizar cada card com o backend para isolamento por usuário
+			if (activeUser) {
+				trackedCards.forEach(c => {
+					fetch('/api/checker/cards/save', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json', 'x-active-user': activeUser },
+						body: JSON.stringify({
+							targetUsername: c.username,
+							displayName: c.displayName,
+							avatarImage: c.avatarImage,
+							tag: c.customTag,
+							notifyOnline: c.notifyOnline,
+							notifyOffline: c.notifyOffline,
+							history: c.history,
+							lastStatus: { isOnline: c.isOnline, lastChecked: c.lastChecked }
+						})
+					}).catch(() => {});
+				});
+			}
 		}
 
 		function updateMonitorStatsBadge() {
@@ -2516,7 +2981,7 @@
 						<div class="tracker-card-header">
 							<div class="tracker-user-info">
 								<div class="tracker-avatar-wrap">
-									<img class="tracker-avatar-img" src="${avatarSrc}" alt="${escapeHtml(card.displayName)}" onerror="this.src='${DEFAULT_AVATAR_SVG}'">
+									<img class="tracker-avatar-img" src="${avatarSrc}" alt="${escapeHtml(card.displayName)}" onerror="this.onerror=null; this.src=getAvatarFallback('${escapeHtml(card.displayName || card.username)}');">
 									<div class="tracker-pulse-dot ${statusClass}"></div>
 								</div>
 
@@ -2966,7 +3431,7 @@
 				return `
 					<div class="room-card" id="room-card-${escapeHtml(r.id)}">
 						<div style="position: relative;">
-							<img class="room-card-img" src="${imgSrc}" alt="${escapeHtml(r.name)}" onerror="this.src='/assets/images/red_room.jpg'">
+							<img class="room-card-img" src="${imgSrc}" alt="${escapeHtml(r.name)}" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80';">
 							<button onclick="toggleSaveRoom('${escapeHtml(r.id)}', '${escapeHtml(r.name)}')" title="${isSaved ? 'Remover dos favoritos' : 'Salvar sala'}" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); color: ${isSaved ? '#f59e0b' : 'white'}; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px;">
 								${isSaved ? '★' : '☆'}
 							</button>
@@ -3226,7 +3691,18 @@
 		function init3DViewer() {
 			const container = document.getElementById('outfit3dContainer');
 			const canvas = document.getElementById('outfit3dCanvas');
-			if (!container || !canvas || scene3d) return;
+			if (!container || !canvas) return;
+
+			if (scene3d) {
+				const w = container.clientWidth || 600;
+				const h = container.clientHeight || 480;
+				if (camera3d && renderer3d && w > 0 && h > 0) {
+					camera3d.aspect = w / h;
+					camera3d.updateProjectionMatrix();
+					renderer3d.setSize(w, h);
+				}
+				return;
+			}
 
 			const width = container.clientWidth || 600;
 			const height = container.clientHeight || 420;
@@ -3245,9 +3721,9 @@
 				controls3d = new THREE.OrbitControls(camera3d, renderer3d.domElement);
 				controls3d.enableDamping = true;
 				controls3d.dampingFactor = 0.05;
-				controls3d.maxPolarAngle = Math.PI / 2 + 0.1;
-				controls3d.minDistance = 1.5;
-				controls3d.maxDistance = 8;
+				controls3d.maxPolarAngle = Math.PI / 2 + 0.05;
+				controls3d.minDistance = 1.0;
+				controls3d.maxDistance = 65; // Permite zoom amplo para ver todo o cenário 80x80m
 			}
 
 			// Luzes
@@ -3262,28 +3738,33 @@
 			fillLight.position.set(-4, 3, -3);
 			scene3d.add(fillLight);
 
-			// Plataforma de Apoio do Avatar (Plano para Raycasting)
-			const platformGeo = new THREE.CylinderGeometry(2.2, 2.3, 0.1, 48);
-			const platformMat = new THREE.MeshStandardMaterial({
-				color: 0x181e2b,
-				roughness: 0.3,
-				metalness: 0.5
-			});
-			groundPlaneMesh = new THREE.Mesh(platformGeo, platformMat);
-			groundPlaneMesh.position.y = -1.1;
-			scene3d.add(groundPlaneMesh);
+			// Construção do Cenário Amplo 3D com Árvores, Pista de Dança e Sofás Interativos
+			if (window.buildExtended3DScene) {
+				window.buildExtended3DScene(scene3d);
+				groundPlaneMesh = window.groundPlaneMesh;
+			}
+			if (!groundPlaneMesh) {
+				const groundGeo = new THREE.PlaneGeometry(80, 80, 40, 40);
+				const groundMat = new THREE.MeshStandardMaterial({ color: 0x090c15, roughness: 0.85, metalness: 0.15 });
+				groundPlaneMesh = new THREE.Mesh(groundGeo, groundMat);
+				groundPlaneMesh.rotation.x = -Math.PI / 2;
+				groundPlaneMesh.position.y = -1.05;
+				groundPlaneMesh.receiveShadow = true;
+				scene3d.add(groundPlaneMesh);
+				window.groundPlaneMesh = groundPlaneMesh;
+			}
 
-			// Grade de solo estilizada
-			const gridHelper = new THREE.GridHelper(4.4, 16, 0x8b5cf6, 0x334155);
-			gridHelper.position.y = -1.04;
-			scene3d.add(gridHelper);
+			// Iniciar loop multiplayer no cenário 3D imediatamente
+			if (window.start3dMultiplayerLoop) {
+				window.start3dMultiplayerLoop(scene3d);
+			}
 
-			// Marcador de destino para Click-to-Move (Anel holográfico)
-			const ringGeo = new THREE.RingGeometry(0.12, 0.22, 32);
+			// Marcador de destino para Click-to-Move (Anel holográfico neon)
+			const ringGeo = new THREE.RingGeometry(0.15, 0.28, 32);
 			const ringMat = new THREE.MeshBasicMaterial({ color: 0x22c55e, side: THREE.DoubleSide });
 			targetMarkerMesh = new THREE.Mesh(ringGeo, ringMat);
 			targetMarkerMesh.rotation.x = Math.PI / 2;
-			targetMarkerMesh.position.y = -1.03;
+			targetMarkerMesh.position.y = -0.98;
 			targetMarkerMesh.visible = false;
 			scene3d.add(targetMarkerMesh);
 
@@ -3438,6 +3919,14 @@
 				animFrameId = requestAnimationFrame(animate);
 				animClock += 0.035;
 
+				// Atualizar relógio da coreografia de 1 minuto
+				if (window.dancePlaybackActive) {
+					window.danceTimerSeconds = (window.danceTimerSeconds + 0.035) % 60;
+					if (window.updateDanceScrubberUI) {
+						window.updateDanceScrubberUI(window.danceTimerSeconds);
+					}
+				}
+
 				// Atualizar movimento em direção ao alvo clicado
 				if (isAvatarMoving && avatarRig.root) {
 					const dx = moveTarget.x - avatarRig.root.position.x;
@@ -3468,8 +3957,31 @@
 						setAvatarPose(activePoseName);
 					}
 				} else {
-					// Animações contínuas / rítmicas de cada pose
-					applyDynamicAnimation(activePoseName, animClock);
+					// Danças complexas de 1 minuto ou poses clássicas
+					if (['passinho_funk', 'kpop_master', 'vogue_imvu', 'electro_wave', 'sync_groove'].includes(activePoseName)) {
+						if (window.applyComplex1MinDance) {
+							window.applyComplex1MinDance(activePoseName, animClock, window.danceTimerSeconds, avatarRig);
+						}
+					} else {
+						applyDynamicAnimation(activePoseName, animClock);
+					}
+				}
+
+				// Animar avatares remotos sincronizados no cenário
+				if (window.animateRemoteAvatars) {
+					window.animateRemoteAvatars(animClock);
+				}
+
+				// Câmera acompanha suavemente o avatar se o modo seguir estiver ativado
+				if (window.isCameraFollow && avatarRig && avatarRig.root && controls3d && camera3d) {
+					const targetX = avatarRig.root.position.x;
+					const targetZ = avatarRig.root.position.z;
+					const diffX = targetX - controls3d.target.x;
+					const diffZ = targetZ - controls3d.target.z;
+					controls3d.target.x += diffX * 0.08;
+					controls3d.target.z += diffZ * 0.08;
+					camera3d.position.x += diffX * 0.08;
+					camera3d.position.z += diffZ * 0.08;
 				}
 
 				// Rotação da câmera se ativada
@@ -3493,9 +4005,10 @@
 			});
 		}
 
-		// Raycasting para movimentação 3D
+		// Raycasting para movimentação 3D e interação com múltiplos assentos em sofás
 		function onCanvasPointerDown(event) {
-			if (!scene3d || !camera3d || !groundPlaneMesh) return;
+			const targetGround = groundPlaneMesh || window.groundPlaneMesh;
+			if (!scene3d || !camera3d || !targetGround) return;
 
 			// Coordenadas normalizadas do mouse
 			const rect = event.target.getBoundingClientRect();
@@ -3507,11 +4020,43 @@
 			const raycaster = new THREE.Raycaster();
 			raycaster.setFromCamera(mouse, camera3d);
 
-			const intersects = raycaster.intersectObject(groundPlaneMesh);
+			// 1. Verificar se clicou em um sofá ou banco interativo com múltiplos spots
+			if (window.interactiveFurniture && window.interactiveFurniture.length > 0) {
+				const furnitureMeshes = window.interactiveFurniture.map(f => f.mesh);
+				const furnHits = raycaster.intersectObjects(furnitureMeshes, true);
+				if (furnHits.length > 0) {
+					const hitObj = furnHits[0];
+					const hitData = hitObj.object.userData;
+					const matched = window.interactiveFurniture.find(f => f.id === hitData.id);
+					if (matched && window.sitOnFurniture) {
+						let requestedSpotIndex = null;
+						if (matched.spots && matched.spots.length > 0 && hitObj.point) {
+							let minDist = 9999;
+							matched.spots.forEach((sp, idx) => {
+								const d = Math.hypot(sp.worldPos.x - hitObj.point.x, sp.worldPos.z - hitObj.point.z);
+								if (d < minDist) {
+									minDist = d;
+									requestedSpotIndex = idx;
+								}
+							});
+						}
+						window.sitOnFurniture(matched, requestedSpotIndex);
+						return;
+					}
+				}
+			}
+
+			// Se estava sentado e clicou no chão, levantar
+			if (window.currentSatFurniture && window.standUpFromSofa) {
+				window.standUpFromSofa();
+			}
+
+			// 2. Movimentação no chão amplo (livre até os pontos mais distantes - até 38 metros)
+			const intersects = raycaster.intersectObject(targetGround);
 			if (intersects.length > 0) {
 				const pt = intersects[0].point;
-				moveTarget.x = Math.max(-1.8, Math.min(1.8, pt.x));
-				moveTarget.z = Math.max(-1.8, Math.min(1.8, pt.z));
+				moveTarget.x = Math.max(-38, Math.min(38, pt.x));
+				moveTarget.z = Math.max(-38, Math.min(38, pt.z));
 				isAvatarMoving = true;
 
 				if (targetMarkerMesh) {
@@ -3614,9 +4159,20 @@
 
 		function setAvatarPose(poseName) {
 			activePoseName = poseName;
+			const poseSelect = document.getElementById('dancePoseSelect');
+			if (poseSelect && poseSelect.value !== poseName) {
+				poseSelect.value = poseName;
+			}
 			document.querySelectorAll('.poses-selector-bar .pose-btn').forEach(b => b.classList.remove('active'));
 			const activeBtn = document.getElementById(`btnPose-${poseName}`);
 			if (activeBtn) activeBtn.classList.add('active');
+
+			// Reiniciar timeline se for uma dança de 1 minuto
+			if (['passinho_funk', 'kpop_master', 'vogue_imvu', 'electro_wave', 'sync_groove'].includes(poseName)) {
+				window.danceTimerSeconds = 0;
+				window.dancePlaybackActive = true;
+				if (window.updateDanceScrubberUI) window.updateDanceScrubberUI(0);
+			}
 
 			if (AVATAR_POSES_JSON[poseName]) {
 				applyJoints(AVATAR_POSES_JSON[poseName].joints);
@@ -3687,26 +4243,96 @@
 			isAvatarMoving = false;
 		}
 
+		window.teleportToPoint = function(x, z, label = 'Local') {
+			if (window.currentSatFurniture && window.standUpFromSofa) window.standUpFromSofa();
+			if (avatarRig && avatarRig.root) {
+				avatarRig.root.position.x = x;
+				avatarRig.root.position.z = z;
+				moveTarget.x = x;
+				moveTarget.z = z;
+				isAvatarMoving = false;
+				if (targetMarkerMesh) {
+					targetMarkerMesh.position.x = x;
+					targetMarkerMesh.position.z = z;
+					targetMarkerMesh.visible = true;
+				}
+			}
+			const statusEl = document.getElementById('clickToMoveStatus');
+			if (statusEl) statusEl.textContent = `📍 Teleportado para ${label} em (${x}, ${z})! Clique no chão para andar a partir daqui.`;
+		};
+
+		// Modo Seguir Câmera do Avatar
+		window.isCameraFollow = false;
+		window.toggleCameraFollow = function() {
+			window.isCameraFollow = !window.isCameraFollow;
+			const btn = document.getElementById('btnCameraFollow');
+			if (btn) {
+				btn.textContent = window.isCameraFollow ? '🎥 Seguir: ON 🟢' : '🎥 Seguir: Off';
+				btn.style.borderColor = window.isCameraFollow ? 'rgba(74, 222, 128, 0.7)' : '';
+				btn.style.background = window.isCameraFollow ? 'rgba(34, 197, 94, 0.25)' : '';
+			}
+			if (window.showLiveToast) {
+				window.showLiveToast(
+					window.isCameraFollow ? 'Câmera Seguindo Avatar 🎥' : 'Câmera Livre 🎥',
+					window.isCameraFollow ? 'A câmera agora acompanha a movimentação do seu avatar no mundo 3D.' : 'Câmera retornou para o modo orbital livre.',
+					'',
+					'online'
+				);
+			}
+		};
+
+		// Modo Tela Cheia Imersiva no Cenário 3D
+		window.toggle3dFullscreen = function() {
+			const container = document.getElementById('outfit3dContainer');
+			const btn = document.getElementById('btn3dFullscreen');
+			if (!container) return;
+
+			if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+				if (container.requestFullscreen) {
+					container.requestFullscreen().catch(() => {});
+				} else if (container.webkitRequestFullscreen) {
+					container.webkitRequestFullscreen();
+				}
+				if (btn) btn.textContent = '⛶ Sair Fullscreen';
+			} else {
+				if (document.exitFullscreen) {
+					document.exitFullscreen().catch(() => {});
+				} else if (document.webkitExitFullscreen) {
+					document.webkitExitFullscreen();
+				}
+				if (btn) btn.textContent = '⛶ Tela Cheia';
+			}
+		};
+
+		document.addEventListener('fullscreenchange', () => {
+			const btn = document.getElementById('btn3dFullscreen');
+			const isFs = Boolean(document.fullscreenElement);
+			if (btn) btn.textContent = isFs ? '⛶ Sair Fullscreen' : '⛶ Tela Cheia';
+			setTimeout(() => {
+				window.dispatchEvent(new Event('resize'));
+			}, 150);
+		});
+
+		// Manipulador do dropdown de teleporte
+		window.handleTeleportSelect = function(selectEl) {
+			if (!selectEl || !selectEl.value) return;
+			const parts = selectEl.value.split(',');
+			if (parts.length >= 2) {
+				const x = parseFloat(parts[0]);
+				const z = parseFloat(parts[1]);
+				const label = parts[2] || 'Destino';
+				if (!isNaN(x) && !isNaN(z)) {
+					window.teleportToPoint(x, z, label);
+				}
+			}
+			selectEl.value = '';
+		};
+
 		function updateOutfitsQuickAvatars() {
 			const container = document.getElementById('outfitsQuickAvatars');
 			if (!container) return;
-
-			const candidates = [];
-			if (activeUser && activeUser !== 'Visitante_Checker') candidates.push(activeUser);
-			trackedCards.forEach(c => {
-				if (!candidates.includes(c.username)) candidates.push(c.username);
-			});
-
-			if (candidates.length === 0) candidates.push('Brenin', 'AckllaOliveira', 'Guest_Kngold');
-
-			container.innerHTML = `
-				<span style="font-size: 11.5px; color: var(--text-muted); font-weight: 700;">Avatares rápidos:</span>
-				${candidates.map(u => `
-					<button class="preset-tag-pill" onclick="loadOutfitsForUser('${escapeHtml(u)}')">
-						👗 ${escapeHtml(u)}
-					</button>
-				`).join('')}
-			`;
+			container.innerHTML = '';
+			container.style.display = 'none';
 		}
 
 		async function loadOutfitsForUser(targetUser = '') {
@@ -3901,7 +4527,7 @@
 						<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted); background: var(--bg-card); border-radius: 12px; border: 1px dashed var(--panel-border);">
 							Nenhum avatar encontrado com o nome "<strong>${escapeHtml(query)}</strong>".<br>
 							<span style="font-size: 12px; color: var(--text-secondary); margin-top: 8px; display: inline-block;">
-								Dica: Digite o @username exato no IMVU (ex: Brenin, AckllaOliveira, Guest_Kngold).
+								Dica: Digite o @username exato no IMVU (ex: Luna_Star, Maya_Vibe, Alex_Neo).
 							</span>
 						</div>
 					`;
@@ -4044,7 +4670,7 @@
 				return `
 					<div class="imvu-user-card">
 						<div class="imvu-card-thumb-wrap">
-							<img class="imvu-card-thumb-img" src="${avatarImg}" alt="${escapeHtml(u.displayName || u.username)}" onerror="this.src='${DEFAULT_AVATAR_SVG}'">
+							<img class="imvu-card-thumb-img" src="${avatarImg}" alt="${escapeHtml(u.displayName || u.username)}" onerror="this.onerror=null; this.src=getAvatarFallback('${escapeHtml(u.displayName || u.username)}');">
 							${u.isAp ? '<span class="imvu-card-badge-ap">AP</span>' : ''}
 						</div>
 
@@ -4215,7 +4841,7 @@
 						return `
 							<div class="imvu-user-card">
 								<div class="imvu-card-thumb-wrap">
-									<img class="imvu-card-thumb-img" src="${avatarSrc}" alt="${escapeHtml(f.displayName || f.username)}" onerror="this.src='${DEFAULT_AVATAR_SVG}'">
+									<img class="imvu-card-thumb-img" src="${avatarSrc}" alt="${escapeHtml(f.displayName || f.username)}" onerror="this.onerror=null; this.src=getAvatarFallback('${escapeHtml(f.displayName || f.username)}');">
 									${f.isAp ? '<span class="imvu-card-badge-ap">AP</span>' : ''}
 								</div>
 

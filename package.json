@@ -8,6 +8,7 @@
     "dev": "node server.mjs",
     "start": "node server.mjs",
     "build": "tsc --build",
+    "lint": "tsc --build",
     "build:cjs": "tsc --build",
     "build:esm": "npm run -ws build:esm",
     "docs:build": "docker build -t imvu/docs ./docs/",
