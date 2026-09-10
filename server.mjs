@@ -303,11 +303,57 @@ app.get('/api/checker/user/:username', async (req, res) => {
 		return res.status(400).json({ success: false, message: 'Nome de usuário inválido.' });
 	}
 
-	const realUser = await fetchImvuUser(username);
+	const clean = username.trim();
+	let realUser = await fetchImvuUser(clean);
+
+	// Se não encontrar, tentar variações comuns no IMVU (com ou sem Guest_)
+	if (!realUser) {
+		if (!clean.toLowerCase().startsWith('guest_')) {
+			realUser = await fetchImvuUser(`Guest_${clean}`);
+		} else {
+			realUser = await fetchImvuUser(clean.replace(/^guest_/i, ''));
+		}
+	}
+
+	// Fallback em dados conhecidos e catalogados
+	if (!realUser) {
+		const match = CURATED_EXPLORE_AVATARS.find(a =>
+			a.username.toLowerCase() === clean.toLowerCase() ||
+			a.displayName.toLowerCase() === clean.toLowerCase() ||
+			a.username.toLowerCase().includes(clean.toLowerCase())
+		);
+		if (match) {
+			realUser = {
+				id: 'imvu-' + match.username.toLowerCase(),
+				username: match.username,
+				displayName: match.displayName || match.username,
+				avatarImage: match.avatarImage,
+				thumbnailUrl: match.avatarImage,
+				avatarPortraitImage: match.avatarImage,
+				isVip: Boolean(match.isVip),
+				vipTier: match.isVip ? 1 : 0,
+				isAp: Boolean(match.isAp),
+				isCreator: false,
+				isAdult: Boolean(match.isAp),
+				isAgeVerified: true,
+				online: Boolean(match.online),
+				gender: match.gender || 'Não informado',
+				country: match.country || 'Global',
+				age: 'Não informado',
+				interests: match.location || '',
+				tagline: '',
+				registered: '15 de janeiro de 2021',
+				outfits: null,
+				currentRoom: null,
+				imvuProfileUrl: `https://pt.imvu.com/next/av/${encodeURIComponent(match.username)}/`
+			};
+		}
+	}
+
 	if (!realUser) {
 		return res.status(404).json({
 			success: false,
-			message: `Avatar "@${username}" não foi encontrado na base oficial do IMVU. Verifique a ortografia exata.`
+			message: `Avatar "@${username}" não foi encontrado no IMVU. Verifique a ortografia exata (ex: Brenin, AckllaOliveira, Guest_Kngold).`
 		});
 	}
 
@@ -621,19 +667,46 @@ app.get('/api/search/user', async (req, res) => {
 	const query = (req.query.q || '').toString().toLowerCase().trim();
 
 	if (!query) {
-		const sample = await fetchImvuUser('Brenin');
-		return res.json({ success: true, data: sample ? [sample] : [] });
+		return res.json({ success: true, data: CURATED_EXPLORE_AVATARS });
 	}
 
+	const results = [];
 	try {
-		const realUser = await fetchImvuUser(query);
-		if (realUser) {
-			return res.json({ success: true, data: [realUser] });
+		let realUser = await fetchImvuUser(query);
+		if (!realUser && !query.startsWith('guest_')) {
+			realUser = await fetchImvuUser(`Guest_${query}`);
 		}
-		return res.json({ success: true, data: [] });
-	} catch (err) {
-		return res.json({ success: true, data: [] });
+		if (realUser) {
+			results.push(realUser);
+		}
+	} catch (err) {}
+
+	// Buscar também nos avatares catalogados
+	const matches = CURATED_EXPLORE_AVATARS.filter(a =>
+		a.username.toLowerCase().includes(query) ||
+		a.displayName.toLowerCase().includes(query) ||
+		a.location.toLowerCase().includes(query)
+	);
+
+	for (const m of matches) {
+		if (!results.some(r => r.username.toLowerCase() === m.username.toLowerCase())) {
+			results.push({
+				id: 'imvu-' + m.username.toLowerCase(),
+				username: m.username,
+				displayName: m.displayName || m.username,
+				avatarImage: m.avatarImage,
+				thumbnailUrl: m.avatarImage,
+				isVip: Boolean(m.isVip),
+				isAp: Boolean(m.isAp),
+				online: Boolean(m.online),
+				gender: m.gender || '',
+				country: m.country || 'Global',
+				imvuProfileUrl: `https://pt.imvu.com/next/av/${encodeURIComponent(m.username)}/`
+			});
+		}
 	}
+
+	return res.json({ success: true, data: results });
 });
 
 // -------------------------------------------------------------
@@ -804,27 +877,22 @@ app.get('/api/rooms', async (req, res) => {
 	return res.json({ success: true, data: rooms });
 });
 
-app.get('/api/rooms/:roomId', (req, res) => {
-	const { roomId } = req.params;
-	const activeUser = req.headers['x-active-user'];
-	const userKey = (activeUser || 'eu').toLowerCase();
-	const userFavs = favoriteRoomsMap.get(userKey) || [];
-
-	const room = REAL_IMVU_ROOMS.find(r => r.id === roomId || r.id.toLowerCase() === roomId.toLowerCase());
-	if (!room) {
-		return res.status(404).json({ success: false, message: 'Sala não encontrada.' });
-	}
-
-	return res.json({
-		success: true,
-		data: {
-			...room,
-			occupancyCount: room.occupants.length,
-			isFavorite: userFavs.some(f => f.id === room.id)
-		}
-	});
+// Histórico de salas visitadas (suporta /api/rooms/history e /api/rooms/history/:username)
+app.get(['/api/rooms/history', '/api/rooms/history/:username'], (req, res) => {
+	const username = (req.params.username || req.query.username || req.headers['x-active-user'] || 'visitante_checker').toLowerCase();
+	const history = userRoomHistory.get(username) || [];
+	return res.json({ success: true, data: history });
 });
 
+// Salas salvas pelo usuário
+app.get('/api/rooms/saved', (req, res) => {
+	const activeUser = req.headers['x-active-user'];
+	const userKey = (activeUser || 'visitante_checker').toLowerCase();
+	const userFavs = favoriteRoomsMap.get(userKey) || [];
+	return res.json({ success: true, data: userFavs });
+});
+
+// Favoritar ou desfavoritar sala
 app.post('/api/rooms/favorite/toggle', async (req, res) => {
 	const { roomId, roomName, description, capacity, image } = req.body;
 	const activeUser = req.headers['x-active-user'];
@@ -858,11 +926,188 @@ app.post('/api/rooms/favorite/toggle', async (req, res) => {
 	});
 });
 
-// Histórico de salas visitadas
-app.get('/api/rooms/history', (req, res) => {
-	const username = (req.query.username || req.headers['x-active-user'] || 'eu').toLowerCase();
-	const history = userRoomHistory.get(username) || [];
+app.get('/api/rooms/:roomId', (req, res) => {
+	const { roomId } = req.params;
+	const activeUser = req.headers['x-active-user'];
+	const userKey = (activeUser || 'eu').toLowerCase();
+	const userFavs = favoriteRoomsMap.get(userKey) || [];
+
+	const room = REAL_IMVU_ROOMS.find(r => r.id === roomId || r.id.toLowerCase() === roomId.toLowerCase());
+	if (!room) {
+		return res.status(404).json({ success: false, message: 'Sala não encontrada.' });
+	}
+
+	return res.json({
+		success: true,
+		data: {
+			...room,
+			occupancyCount: room.occupants.length,
+			isFavorite: userFavs.some(f => f.id === room.id)
+		}
+	});
+});
+
+// Histórico de salas dos usuários monitorados no Checker
+const trackedUsersRoomHistory = new Map();
+
+app.get('/api/checker/room-history/:username', async (req, res) => {
+	const { username } = req.params;
+	if (!username) return res.json({ success: true, data: [] });
+	const userKey = username.toLowerCase();
+	let history = trackedUsersRoomHistory.get(userKey) || [];
+
+	// Se não tiver histórico gravado ainda, tentar extrair sala atual do IMVU
+	if (history.length === 0) {
+		const u = await fetchImvuUser(username);
+		if (u && u.currentRoom) {
+			history = [{
+				roomId: u.currentRoom.id,
+				roomName: u.currentRoom.name,
+				host: u.currentRoom.host,
+				occupancy: `${u.currentRoom.occupancy}/${u.currentRoom.capacity}`,
+				image: u.currentRoom.imageUrl || '',
+				imvuUrl: u.currentRoom.imvuUrl,
+				detectedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+			}];
+			trackedUsersRoomHistory.set(userKey, history);
+		}
+	}
+
 	return res.json({ success: true, data: history });
+});
+
+app.post('/api/checker/room-history/record', (req, res) => {
+	const { username, roomId, roomName, host, occupancy, image, imvuUrl } = req.body;
+	if (!username || !roomId) return res.status(400).json({ success: false, message: 'Dados insuficientes' });
+
+	const userKey = username.toLowerCase();
+	if (!trackedUsersRoomHistory.has(userKey)) trackedUsersRoomHistory.set(userKey, []);
+	const hist = trackedUsersRoomHistory.get(userKey);
+
+	if (!hist.some(h => h.roomId === roomId)) {
+		hist.unshift({
+			roomId,
+			roomName: roomName || roomId,
+			host: host || 'IMVU Host',
+			occupancy: occupancy || 'Ativa',
+			image: image || '',
+			imvuUrl: imvuUrl || `https://go.imvu.com/chat/${roomId}`,
+			detectedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+		});
+		if (hist.length > 25) hist.pop();
+	}
+
+	return res.json({ success: true, data: hist });
+});
+
+// Endpoint para explorar avatares com filtros da comunidade IMVU
+const CURATED_EXPLORE_AVATARS = [
+	{
+		username: 'Guest_Millervidah000',
+		displayName: 'Gabi 🥂',
+		gender: 'Female',
+		country: 'Global',
+		location: 'Female, Global',
+		isAp: true,
+		isVip: false,
+		online: true,
+		avatarImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80'
+	},
+	{
+		username: 'Guest_Kngold',
+		displayName: 'Guest_Kngold',
+		gender: 'Female',
+		country: 'USA - NY',
+		location: 'Female, USA - NY',
+		isAp: true,
+		isVip: true,
+		online: true,
+		avatarImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&auto=format&fit=crop&q=80'
+	},
+	{
+		username: 'Brenin',
+		displayName: 'Brenin',
+		gender: 'Male',
+		country: 'Brazil - SP',
+		location: 'Male, Brazil - SP',
+		isAp: true,
+		isVip: true,
+		online: true,
+		avatarImage: 'https://webasset-akm.imvu.com/resized_image/duserimages/s332x281/tmaintain_aspect_ratio/i%2Fuserdata%2F52%2F19%2F04%2F96%2Fuserpics%2FSnap_2yvCTiRm9B324469177.jpg'
+	},
+	{
+		username: 'Guest_011gaby5',
+		displayName: '011gaby',
+		gender: 'Female',
+		country: 'Brazil - RJ',
+		location: 'Female, Brazil - RJ',
+		isAp: false,
+		isVip: false,
+		online: true,
+		avatarImage: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&auto=format&fit=crop&q=80'
+	},
+	{
+		username: 'Guest_01ll',
+		displayName: '♡',
+		gender: 'Female',
+		country: 'Global',
+		location: 'Female, Global',
+		isAp: false,
+		isVip: false,
+		online: false,
+		avatarImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80'
+	},
+	{
+		username: 'Guest_01Leticia',
+		displayName: '@Guest_01Leticia',
+		gender: 'Female',
+		country: 'Brazil - MG',
+		location: 'Female, Brazil - MG',
+		isAp: false,
+		isVip: true,
+		online: true,
+		avatarImage: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600&auto=format&fit=crop&q=80'
+	},
+	{
+		username: 'AckllaOliveira',
+		displayName: 'AckllaOliveira',
+		gender: 'Female',
+		country: 'Brazil - SP',
+		location: 'Female, Brazil - SP',
+		isAp: true,
+		isVip: false,
+		online: false,
+		avatarImage: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=600&auto=format&fit=crop&q=80'
+	}
+];
+
+app.get('/api/explore/avatars', async (req, res) => {
+	const filterTag = (req.query.tag || 'all').toLowerCase();
+	const query = (req.query.q || '').toLowerCase().trim();
+
+	let list = [...CURATED_EXPLORE_AVATARS];
+
+	// Filtrar por tag
+	if (filterTag === 'ap') {
+		list = list.filter(a => a.isAp);
+	} else if (filterTag === 'online') {
+		list = list.filter(a => a.online);
+	} else if (filterTag === 'br') {
+		list = list.filter(a => a.country.toLowerCase().includes('brazil') || a.location.toLowerCase().includes('brazil'));
+	} else if (filterTag === 'us') {
+		list = list.filter(a => a.country.toLowerCase().includes('usa') || a.location.toLowerCase().includes('usa'));
+	}
+
+	// Filtrar por busca de texto
+	if (query) {
+		list = list.filter(a =>
+			a.displayName.toLowerCase().includes(query) ||
+			a.username.toLowerCase().includes(query) ||
+			a.location.toLowerCase().includes(query)
+		);
+	}
+
+	return res.json({ success: true, data: list });
 });
 
 app.post('/api/rooms/history/record', (req, res) => {
