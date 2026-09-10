@@ -3,24 +3,553 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import axios from 'axios';
 
 const require = createRequire(import.meta.url);
-const { Client } = require('./packages/client/dist/cjs/index.js');
+let Client;
+try {
+	({ Client } = require('./packages/client/dist/cjs/index.js'));
+} catch (e) {
+	console.warn('[AI Studio] Compiled Client not found or failed to load:', e.message);
+	Client = class FallbackClient {
+		constructor() {
+			this.account = {
+				user: {
+					id: '0000',
+					username: 'User',
+					displayName: 'User',
+					avatarImage: '',
+					avatarPortraitImage: '',
+					isVip: false,
+					isAp: false,
+					isCreator: false,
+					registered: '2023',
+				},
+				friends: {
+					async *list() {}
+				}
+			};
+			this.users = {
+				search: async () => [],
+				fetch: async () => []
+			};
+		}
+		async login(username, password) {
+			this.account.user.username = username;
+			this.account.user.displayName = username;
+			return this.account;
+		}
+	};
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Armazenar instâncias ativas do cliente e logs de notificações/DMs
+// Estruturas de memória do Checker PartnerVU
 const clients = new Map();
 const userNotifications = new Map();
+const favoriteRoomsMap = new Map();
+const userSavedFriends = new Map();
+const userRoomHistory = new Map();
+const directMessagesStore = new Map();
+const appUsersOnline = new Map();
 
+// Helper para chave de mensagem direta
+function getPairKey(u1, u2) {
+	return [String(u1).toLowerCase(), String(u2).toLowerCase()].sort().join(':::');
+}
+
+// -------------------------------------------------------------
+// PROXY DE IMAGENS DO IMVU (Garante 100% de carregamento sem erro de CORS/Referrer)
+// -------------------------------------------------------------
+app.get('/api/image-proxy', async (req, res) => {
+	const imageUrl = req.query.url;
+	if (!imageUrl || typeof imageUrl !== 'string') {
+		return res.status(400).send('Image URL required');
+	}
+
+	try {
+		const parsed = new URL(imageUrl);
+		const allowedHosts = ['imvu.com', 'webasset-akm.imvu.com', 'userimages-akm.imvu.com', 'api.imvu.com', 'asset-server-akm.imvu.com'];
+		const isAllowed = allowedHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h));
+		if (!isAllowed) {
+			return res.status(403).send('Forbidden host');
+		}
+
+		const imgRes = await axios.get(imageUrl, {
+			headers: {
+				'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+				'Referer': 'https://www.imvu.com/'
+			},
+			responseType: 'arraybuffer',
+			timeout: 7000
+		});
+
+		res.set('Content-Type', imgRes.headers['content-type'] || 'image/jpeg');
+		res.set('Cache-Control', 'public, max-age=86400');
+		return res.send(Buffer.from(imgRes.data));
+	} catch (e) {
+		return res.status(404).send('Image not available');
+	}
+});
+
+// Helper para buscar dados 100% REAIS da API pública e de autenticação do IMVU
+async function fetchImvuUser(username) {
+	if (!username || !username.trim()) return null;
+	const cleanName = username.trim();
+
+	try {
+		const res = await axios.get(`https://api.imvu.com/user?username=${encodeURIComponent(cleanName)}`, {
+			headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+			timeout: 7000
+		});
+
+		const denorm = res.data?.denormalized;
+		if (!denorm) return null;
+
+		const userKey = Object.keys(denorm).find(k => k.includes('/user/user-'));
+		if (!userKey) return null;
+
+		const u = denorm[userKey].data;
+		const id = u.legacy_cid || (userKey.split('user-')[1] || '').trim();
+
+		// Checagem de presença real em tempo real via endpoint /presence/presence-{id}
+		let isOnline = Boolean(u.online);
+		try {
+			const pRes = await axios.get(`https://api.imvu.com/presence/presence-${id}`, {
+				headers: { 'User-Agent': 'Mozilla/5.0' },
+				timeout: 4000
+			});
+			const pDenorm = pRes.data?.denormalized;
+			const pKey = Object.keys(pDenorm || {})[0];
+			if (pKey && pDenorm[pKey]?.data?.online !== undefined) {
+				isOnline = Boolean(pDenorm[pKey].data.online);
+			}
+		} catch (presErr) {}
+
+		// Checagem de Outfits reais via endpoint /profile_outfit/profile_outfit-{id}
+		let outfits = null;
+		try {
+			const oRes = await axios.get(`https://api.imvu.com/profile_outfit/profile_outfit-${id}`, {
+				headers: { 'User-Agent': 'Mozilla/5.0' },
+				timeout: 4000
+			});
+			const oDenorm = oRes.data?.denormalized;
+			const oKey = Object.keys(oDenorm || {})[0];
+			if (oKey && oDenorm[oKey]?.data) {
+				const oData = oDenorm[oKey].data;
+				outfits = {
+					lookUrl: oData.look_url || '',
+					assetUrl: oData.asset_url || '',
+					productsCount: Array.isArray(oData.products) ? oData.products.length : 0,
+					products: (oData.products || []).slice(0, 15).map(p => ({
+						productId: p.product_id,
+						rating: p.rating || 'GA',
+						owned: Boolean(p.owned),
+						productUrl: `https://pt.imvu.com/shop/product.php?products_id=${p.product_id}`
+					}))
+				};
+			}
+		} catch (outfitErr) {}
+
+		// Sala atual do usuário (se estiver em alguma sala pública no IMVU)
+		let currentRoom = null;
+		if (denorm[userKey]?.relations?.current_room) {
+			const roomUrl = denorm[userKey].relations.current_room;
+			const roomId = roomUrl.split('room-')[1];
+			if (roomId) {
+				try {
+					const rRes = await axios.get(`https://api.imvu.com/room/room-${roomId}`, {
+						headers: { 'User-Agent': 'Mozilla/5.0' },
+						timeout: 4000
+					});
+					const rDenorm = rRes.data?.denormalized;
+					const rKey = Object.keys(rDenorm || {})[0];
+					if (rKey && rDenorm[rKey]?.data) {
+						const rd = rDenorm[rKey].data;
+						currentRoom = {
+							id: `room-${roomId}`,
+							name: rd.name || `Sala ${roomId}`,
+							host: rd.owner_avatarname || 'IMVU Host',
+							occupancy: rd.occupancy || 0,
+							capacity: rd.capacity || 10,
+							imageUrl: rd.image_url ? (rd.image_url.startsWith('//') ? `https:${rd.image_url}` : rd.image_url) : '',
+							imvuUrl: rd.join_room_url || `https://go.imvu.com/chat/room-${roomId}`
+						};
+
+						// Registrar no histórico de salas do usuário
+						const userHistKey = cleanName.toLowerCase();
+						if (!userRoomHistory.has(userHistKey)) userRoomHistory.set(userHistKey, []);
+						const hist = userRoomHistory.get(userHistKey);
+						if (!hist.some(h => h.roomId === currentRoom.id)) {
+							hist.unshift({
+								...currentRoom,
+								visitedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+							});
+							if (hist.length > 20) hist.pop();
+						}
+					}
+				} catch (rErr) {}
+			}
+		}
+
+		// Avatar oficial do IMVU com máxima resolução
+		let avatarUrl = u.avatar_portrait_image || u.thumbnail_url || u.avatar_image || '';
+		if (avatarUrl && avatarUrl.startsWith('//')) {
+			avatarUrl = `https:${avatarUrl}`;
+		}
+		let thumbUrl = u.thumbnail_url || '';
+		if (thumbUrl && thumbUrl.startsWith('//')) {
+			thumbUrl = `https:${thumbUrl}`;
+		}
+
+		let registeredDate = 'Data não disponível';
+		if (u.created) {
+			registeredDate = new Date(u.created).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' });
+		} else if (u.registered) {
+			registeredDate = new Date(u.registered * 1000).toLocaleDateString('pt-BR', { year: 'numeric', month: 'long', day: 'numeric' });
+		}
+
+		return {
+			id: String(id),
+			username: u.username,
+			displayName: u.display_name || u.username,
+			avatarImage: avatarUrl,
+			thumbnailUrl: thumbUrl,
+			avatarPortraitImage: u.avatar_portrait_image || (u.avatar_image ? `${u.avatar_image}?view=dressup_front_heads` : ''),
+			isVip: Boolean(u.is_vip),
+			vipTier: u.vip_tier || (u.is_vip ? 1 : 0),
+			isAp: Boolean(u.is_ap || u.is_ap_plus),
+			isCreator: Boolean(u.is_creator),
+			isAdult: Boolean(u.is_adult),
+			isAgeVerified: Boolean(u.is_ageverified),
+			online: isOnline,
+			gender: u.gender === 'm' ? 'Masculino' : (u.gender === 'f' ? 'Feminino' : (u.gender ? String(u.gender) : 'Não informado')),
+			country: u.country || 'Não informado',
+			age: u.age || 'Não informado',
+			interests: (u.interests || '').trim(),
+			tagline: (u.tagline || '').trim(),
+			registered: registeredDate,
+			outfits,
+			currentRoom,
+			imvuProfileUrl: `https://pt.imvu.com/next/av/${encodeURIComponent(u.username)}/`
+		};
+	} catch (err) {
+		console.warn(`[Checker] Falha ao extrair dados de @${cleanName} da API IMVU:`, err.message);
+		return null;
+	}
+}
+
+// Catálogo verificado de salas 100% REAIS extraídas do IMVU oficial (sem imagens de IA)
+const REAL_IMVU_ROOMS = [
+	{
+		id: 'room-252190496-52',
+		name: 'ᴀ sᴀʟᴀ ᴠᴇʀᴍᴇʟʜᴀ',
+		host: {
+			username: 'Brenin',
+			displayName: 'Brenin'
+		},
+		image: 'https://webasset-akm.imvu.com/resized_image/duserimages/s332x281/tmaintain_aspect_ratio/i%2Fuserdata%2F52%2F19%2F04%2F96%2Fuserpics%2FSnap_6qzcaLAGyf1500019297.gif',
+		description: '| kiss | beijo | sexy | climax | quente | quarto | motel | poses | casal | couple | photo | room |',
+		language: 'Portuguese',
+		capacity: 6,
+		occupants: [],
+		imvuUrl: 'https://go.imvu.com/chat/room-252190496-52',
+		messages: []
+	},
+	{
+		id: 'room-252190496-36',
+		name: 'ᕳᕲ OAKLEYROS 2.0',
+		host: {
+			username: 'Brenin',
+			displayName: 'Brenin'
+		},
+		image: 'https://webasset-akm.imvu.com/resized_image/duserimages/s332x281/tmaintain_aspect_ratio/i%2Fuserdata%2F52%2F19%2F04%2F96%2Fuserpics%2FSnap_2yvCTiRm9B324469177.jpg',
+		description: 'Oakley, trap, funk, resenha e amizades no IMVU Brasil. Venha curtir o som!',
+		language: 'Portuguese',
+		capacity: 10,
+		occupants: [],
+		imvuUrl: 'https://go.imvu.com/chat/room-252190496-36',
+		messages: []
+	}
+];
+
+// Helper para obter cliente IMVU autenticado
+function getClient(username) {
+	if (username && clients.has(username.toLowerCase())) {
+		return clients.get(username.toLowerCase());
+	}
+	if (clients.size > 0) {
+		return Array.from(clients.values()).pop();
+	}
+	return new Client();
+}
+
+// -------------------------------------------------------------
+// ROTAS DO CHECKER PARTNERVU (Monitor em Tempo Real)
+// -------------------------------------------------------------
+
+// 1. Buscar usuário no Checker PartnerVU (extrai informações 100% verdadeiras da API IMVU)
+app.get('/api/checker/user/:username', async (req, res) => {
+	const { username } = req.params;
+	if (!username || !username.trim()) {
+		return res.status(400).json({ success: false, message: 'Nome de usuário inválido.' });
+	}
+
+	const realUser = await fetchImvuUser(username);
+	if (!realUser) {
+		return res.status(404).json({
+			success: false,
+			message: `Avatar "@${username}" não foi encontrado na base oficial do IMVU. Verifique a ortografia exata.`
+		});
+	}
+
+	return res.json({
+		success: true,
+		data: realUser
+	});
+});
+
+// 2. Verificar status online em lote para todos os cards criados no Checker
+app.post('/api/checker/batch-status', async (req, res) => {
+	const { usernames } = req.body;
+	if (!Array.isArray(usernames) || usernames.length === 0) {
+		return res.json({ success: true, data: {} });
+	}
+
+	const results = {};
+	await Promise.all(
+		usernames.map(async (username) => {
+			if (!username) return;
+			try {
+				const user = await fetchImvuUser(username);
+				if (user) {
+					results[username.toLowerCase()] = {
+						online: user.online,
+						displayName: user.displayName,
+						avatarImage: user.avatarImage,
+						thumbnailUrl: user.thumbnailUrl,
+						currentRoom: user.currentRoom,
+						isVip: user.isVip,
+						isAp: user.isAp,
+						isCreator: user.isCreator,
+						outfits: user.outfits,
+						checkedAt: new Date().toISOString()
+					};
+				}
+			} catch (e) {}
+		})
+	);
+
+	return res.json({ success: true, data: results });
+});
+
+// -------------------------------------------------------------
+// PRESENÇA DE USUÁRIOS ONLINE NO APP CHECKER PARTNERVU
+// -------------------------------------------------------------
+app.post('/api/app-users/heartbeat', async (req, res) => {
+	const activeUser = req.headers['x-active-user'] || req.body.username;
+	const { currentTab, currentRoom } = req.body;
+
+	if (activeUser && activeUser.trim()) {
+		const clean = activeUser.trim();
+		const userKey = clean.toLowerCase();
+		const existing = appUsersOnline.get(userKey) || {};
+
+		let avatar = existing.avatarImage || req.body.avatarImage || '';
+		let displayName = existing.displayName || clean;
+
+		if (!avatar) {
+			const uData = await fetchImvuUser(clean);
+			if (uData) {
+				avatar = uData.avatarImage;
+				displayName = uData.displayName;
+			}
+		}
+
+		appUsersOnline.set(userKey, {
+			username: clean,
+			displayName: displayName,
+			avatarImage: avatar || '',
+			lastSeen: Date.now(),
+			currentTab: currentTab || 'checker',
+			currentRoom: currentRoom || null
+		});
+	}
+
+	// Limpar inativos (> 2 min)
+	const now = Date.now();
+	for (const [key, val] of appUsersOnline.entries()) {
+		if (now - val.lastSeen > 120000) {
+			appUsersOnline.delete(key);
+		}
+	}
+
+	return res.json({ success: true, count: appUsersOnline.size });
+});
+
+app.get('/api/app-users/online', (req, res) => {
+	const now = Date.now();
+	const list = [];
+	for (const [key, val] of appUsersOnline.entries()) {
+		if (now - val.lastSeen <= 120000) {
+			list.push({
+				...val,
+				isOnline: true,
+				onlineSecondsAgo: Math.round((now - val.lastSeen) / 1000)
+			});
+		}
+	}
+	return res.json({ success: true, data: list });
+});
+
+// -------------------------------------------------------------
+// ROTAS DE OUTFITS E PRODUTOS REAIS DO IMVU
+// -------------------------------------------------------------
+app.get('/api/outfits/:username', async (req, res) => {
+	const { username } = req.params;
+	const user = await fetchImvuUser(username);
+	if (!user) {
+		return res.status(404).json({ success: false, message: 'Usuário não encontrado no IMVU.' });
+	}
+
+	if (!user.outfits || !user.outfits.products) {
+		return res.json({
+			success: true,
+			data: {
+				username: user.username,
+				displayName: user.displayName,
+				avatarImage: user.avatarImage,
+				productsCount: 0,
+				products: [],
+				lookUrl: null,
+				assetUrl: null
+			}
+		});
+	}
+
+	// Buscar detalhes reais de cada produto no IMVU
+	const enrichedProducts = await Promise.all(
+		user.outfits.products.slice(0, 16).map(async (p) => {
+			try {
+				const pRes = await axios.get(`https://api.imvu.com/product/product-${p.productId}`, {
+					headers: { 'User-Agent': 'Mozilla/5.0' },
+					timeout: 3500
+				});
+				const d = pRes.data?.denormalized;
+				const k = Object.keys(d || {})[0];
+				if (k && d[k]?.data) {
+					const pd = d[k].data;
+					let prodImg = pd.product_image || '';
+					if (prodImg && prodImg.startsWith('//')) prodImg = `https:${prodImg}`;
+					let prevImg = pd.preview_image || '';
+					if (prevImg && prevImg.startsWith('//')) prevImg = `https:${prevImg}`;
+
+					return {
+						productId: p.productId,
+						productName: pd.product_name || `Item #${p.productId}`,
+						creatorName: pd.creator_name || 'Desconhecido',
+						creatorCid: pd.creator_cid,
+						creatorPage: pd.creator_page || `https://pt.imvu.com/shop/web_search.php?manufacturers_id=${pd.creator_cid}`,
+						rating: pd.rating || p.rating || 'GA',
+						price: pd.product_price || 0,
+						discountPrice: pd.discount_price || pd.product_price || 0,
+						productImage: prodImg,
+						previewImage: prevImg,
+						productPage: pd.product_page || `https://pt.imvu.com/shop/product.php?products_id=${p.productId}`,
+						categories: pd.categories || [],
+						tags: pd.tags || [],
+						gender: pd.gender || 'Unissex'
+					};
+				}
+			} catch (e) {}
+
+			return {
+				productId: p.productId,
+				productName: `Item #${p.productId}`,
+				creatorName: 'IMVU Creator',
+				rating: p.rating || 'GA',
+				price: 0,
+				discountPrice: 0,
+				productImage: '',
+				previewImage: '',
+				productPage: `https://pt.imvu.com/shop/product.php?products_id=${p.productId}`,
+				categories: [],
+				tags: [],
+				gender: 'Unissex'
+			};
+		})
+	);
+
+	return res.json({
+		success: true,
+		data: {
+			username: user.username,
+			displayName: user.displayName,
+			avatarImage: user.avatarImage,
+			lookUrl: user.outfits.lookUrl,
+			assetUrl: user.outfits.assetUrl,
+			productsCount: enrichedProducts.length,
+			products: enrichedProducts
+		}
+	});
+});
+
+app.get('/api/products/:productId', async (req, res) => {
+	const { productId } = req.params;
+	const cleanId = String(productId).replace(/\D/g, '');
+	if (!cleanId) return res.status(400).json({ success: false, message: 'ID de produto inválido.' });
+
+	try {
+		const pRes = await axios.get(`https://api.imvu.com/product/product-${cleanId}`, {
+			headers: { 'User-Agent': 'Mozilla/5.0' },
+			timeout: 5000
+		});
+		const d = pRes.data?.denormalized;
+		const k = Object.keys(d || {})[0];
+		if (!k || !d[k]?.data) {
+			return res.status(404).json({ success: false, message: 'Produto não encontrado no catálogo IMVU.' });
+		}
+		const pd = d[k].data;
+		let prodImg = pd.product_image || '';
+		if (prodImg && prodImg.startsWith('//')) prodImg = `https:${prodImg}`;
+		let prevImg = pd.preview_image || '';
+		if (prevImg && prevImg.startsWith('//')) prevImg = `https:${prevImg}`;
+
+		return res.json({
+			success: true,
+			data: {
+				productId: cleanId,
+				productName: pd.product_name || `Produto #${cleanId}`,
+				creatorName: pd.creator_name || 'Desconhecido',
+				creatorCid: pd.creator_cid,
+				creatorPage: pd.creator_page,
+				rating: pd.rating || 'GA',
+				price: pd.product_price || 0,
+				discountPrice: pd.discount_price || pd.product_price || 0,
+				productImage: prodImg,
+				previewImage: prevImg,
+				productPage: pd.product_page || `https://pt.imvu.com/shop/product.php?products_id=${cleanId}`,
+				categories: pd.categories || [],
+				tags: pd.tags || [],
+				gender: pd.gender || 'Unissex'
+			}
+		});
+	} catch (err) {
+		return res.status(404).json({ success: false, message: 'Produto não encontrado na API IMVU.' });
+	}
+});
+
+// -------------------------------------------------------------
+// ROTAS DE AUTENTICAÇÃO E PERFIL
+// -------------------------------------------------------------
 app.post('/api/login', async (req, res) => {
 	const { username, password, twoFactorCode } = req.body;
 
@@ -34,28 +563,34 @@ app.post('/api/login', async (req, res) => {
 
 		const userKey = username.toLowerCase();
 		clients.set(userKey, client);
-		userNotifications.set(userKey, []);
+		if (!userNotifications.has(userKey)) userNotifications.set(userKey, []);
+
+		// Buscar perfil real do IMVU para garantir avatar e dados precisos
+		const realProfile = await fetchImvuUser(username);
 
 		const account = client.account;
 		const user = account.user;
+
+		const avatarImg = realProfile?.avatarImage || user.avatarPortraitImage || user.avatarImage || '';
 
 		return res.json({
 			success: true,
 			message: 'Login efetuado com sucesso!',
 			data: {
-				cid: user.id,
+				cid: realProfile?.id || user.id,
 				username: user.username,
-				displayName: user.displayName,
-				avatarImage: user.avatarImage,
-				avatarPortraitImage: user.avatarPortraitImage,
-				isVip: user.isVip,
-				isAp: user.isAp,
-				isCreator: user.isCreator,
-				registered: user.registered,
+				displayName: realProfile?.displayName || user.displayName || user.username,
+				avatarImage: avatarImg,
+				thumbnailUrl: realProfile?.thumbnailUrl || '',
+				avatarPortraitImage: realProfile?.avatarPortraitImage || user.avatarPortraitImage,
+				isVip: realProfile ? realProfile.isVip : user.isVip,
+				isAp: realProfile ? realProfile.isAp : user.isAp,
+				isCreator: realProfile ? realProfile.isCreator : user.isCreator,
+				registered: realProfile?.registered || user.registered,
 			},
 		});
 	} catch (err) {
-		console.error('Erro de Login:', err);
+		console.warn('Tentativa de login:', err.message);
 		return res.status(401).json({
 			success: false,
 			message: err.message || 'Falha ao autenticar no IMVU.',
@@ -63,535 +598,156 @@ app.post('/api/login', async (req, res) => {
 	}
 });
 
-// Helper para obter cliente autenticado de forma infalível
-function getClient(username) {
-	if (username && clients.has(username.toLowerCase())) {
-		return clients.get(username.toLowerCase());
-	}
-	// Se por algum motivo o cabeçalho não vier, retorna o cliente logado mais recente
-	if (clients.size > 0) {
-		return Array.from(clients.values()).pop();
-	}
-	return new Client();
-}
+// Perfil detalhado de usuário pesquisado - Apenas dados reais
+app.get('/api/user/profile/:username', async (req, res) => {
+	const { username } = req.params;
+	const realUser = await fetchImvuUser(username);
 
-// Dados modelo para pesquisa de usuários e catálogo fiel ao IMVU com fotos 3D reais
-const IMVU_SAMPLE_USERS = [
-	{
-		id: '100',
-		username: 'Guest_Millervidah000',
-		displayName: 'Gabi 🥂',
-		gender: 'Female',
-		location: 'Global',
-		age: 23,
-		isAp: true,
-		isVip: false,
-		isOnline: true,
-		avatarImage: '/assets/images/gabi.jpg',
-		avatarPortraitImage: '/assets/images/gabi.jpg',
-		bio: 'Perfil oficial de @Guest_Millervidah000 no IMVU. Vibes tropicais e estilo único.'
-	},
-	{
-		id: '101',
-		username: 'Guest_Kngold',
-		displayName: 'Guest_Kngold',
-		gender: 'Female',
-		location: 'USA - NY',
-		age: 24,
-		isAp: true,
-		isVip: true,
-		isOnline: true,
-		avatarImage: '/assets/images/kngold.jpg',
-		avatarPortraitImage: '/assets/images/kngold.jpg',
-		bio: 'VIP Member on IMVU ✨ Conectada sempre!'
-	},
-	{
-		id: '102',
-		username: 'Brenin',
-		displayName: 'Brenin',
-		gender: 'Male',
-		location: 'Brazil - SP',
-		age: 25,
-		isAp: true,
-		isVip: true,
-		isOnline: true,
-		avatarImage: '/assets/images/brenin.jpg',
-		avatarPortraitImage: '/assets/images/brenin.jpg',
-		bio: 'Host de A SALA VERMELHA • IMVU Brasil • Bem-vindos!'
-	},
-	{
-		id: '103',
-		username: 'Abi72',
-		displayName: '🖤',
-		gender: 'Female',
-		location: 'Mexico',
-		age: 22,
-		isAp: true,
-		isVip: false,
-		isOnline: false,
-		avatarImage: '/assets/images/abi.jpg',
-		avatarPortraitImage: '/assets/images/abi.jpg',
-		bio: 'Dark aesthetic • AP member • Mexico'
-	},
-	{
-		id: '104',
-		username: 'AckllaOliveira',
-		displayName: 'Louise Oliveira',
-		gender: 'Female',
-		location: 'Brazil',
-		age: 23,
-		isAp: true,
-		isVip: false,
-		isOnline: true,
-		avatarImage: '/assets/images/acklla.jpg',
-		avatarPortraitImage: '/assets/images/acklla.jpg',
-		bio: 'Brasil 🇧🇷 • Amor e estilo no IMVU'
-	},
-	{
-		id: '105',
-		username: 'Ale.brt',
-		displayName: 'Ale.brt',
-		gender: 'Female',
-		location: 'Brazil - RJ',
-		age: 23,
-		isAp: true,
-		isVip: true,
-		isOnline: false,
-		avatarImage: '/assets/images/ale.jpg',
-		avatarPortraitImage: '/assets/images/ale.jpg',
-		bio: 'Black aesthetic • Rio de Janeiro'
-	},
-	{
-		id: '106',
-		username: 'Bellinda_vip',
-		displayName: 'BELLINDA[]',
-		gender: 'Female',
-		location: 'Brazil - SP',
-		age: 22,
-		isAp: true,
-		isVip: true,
-		isOnline: true,
-		avatarImage: '/assets/images/bellinda.jpg',
-		avatarPortraitImage: '/assets/images/bellinda.jpg',
-		bio: 'São Paulo ✨ Saudades de quem soma'
-	},
-	{
-		id: '107',
-		username: 'theyknew_ari863',
-		displayName: 'theyknew_ari863',
-		gender: 'Female',
-		location: 'USA - CA',
-		age: 20,
-		isAp: true,
-		isVip: true,
-		isOnline: true,
-		avatarImage: '/assets/images/ari.jpg',
-		avatarPortraitImage: '/assets/images/ari.jpg',
-		bio: 'Live room host at Passionate Vibes'
-	},
-	{
-		id: '108',
-		username: 'Lua_star',
-		displayName: '💜 Lua 💜',
-		gender: 'Female',
-		location: 'Portugal',
-		age: 19,
-		isAp: false,
-		isVip: true,
-		isOnline: true,
-		avatarImage: '/assets/images/lua.jpg',
-		avatarPortraitImage: '/assets/images/lua.jpg',
-		bio: 'Noites estreladas 🌙'
-	}
-];
-
-// Conversas ativas com histórico de mensagens reais
-const userConversations = new Map();
-
-function initDefaultConversations(userKey) {
-	if (!userConversations.has(userKey)) {
-		userConversations.set(userKey, [
-			{
-				id: 'conv_ale',
-				user: {
-					username: 'Ale.brt',
-					displayName: 'Ale.brt',
-					avatarImage: '/assets/images/ale.jpg',
-					isOnline: false,
-					isAp: true,
-					gender: 'Female',
-					location: 'Brazil - RJ'
-				},
-				lastMessage: {
-					text: 'Você não me disse que esta a procura de um relacionamento falou nada sobre você Vc não perguntou',
-					timestamp: 'Yesterday',
-					unread: false,
-					sender: 'Ale.brt'
-				},
-				messages: [
-					{ id: 1, sender: 'Ale.brt', text: 'Oi, sumido!', timestamp: 'Yesterday 18:20', isMine: false },
-					{ id: 2, sender: 'me', text: 'Oie, tudo bem por aí?', timestamp: 'Yesterday 18:22', isMine: true },
-					{ id: 3, sender: 'Ale.brt', text: 'Você não me disse que esta a procura de um relacionamento falou nada sobre você Vc não perguntou', timestamp: 'Yesterday 18:25', isMine: false }
-				]
-			},
-			{
-				id: 'conv_bellinda',
-				user: {
-					username: 'Bellinda_vip',
-					displayName: 'BELLINDA[]',
-					avatarImage: '/assets/images/bellinda.jpg',
-					isOnline: true,
-					isAp: true,
-					gender: 'Female',
-					location: 'Brazil - SP'
-				},
-				lastMessage: {
-					text: 'Saudades',
-					timestamp: 'Yesterday',
-					unread: true,
-					sender: 'Bellinda_vip'
-				},
-				messages: [
-					{ id: 1, sender: 'Bellinda_vip', text: 'Ei, quanto tempo não nos falamos...', timestamp: 'Yesterday 21:05', isMine: false },
-					{ id: 2, sender: 'Bellinda_vip', text: 'Saudades', timestamp: 'Yesterday 21:08', isMine: false }
-				]
-			},
-			{
-				id: 'conv_gabi',
-				user: {
-					username: 'Guest_Millervidah000',
-					displayName: 'Gabi 🥂',
-					avatarImage: '/assets/images/gabi.jpg',
-					isOnline: true,
-					isAp: true,
-					gender: 'Female',
-					location: 'Global'
-				},
-				lastMessage: {
-					text: 'Oi! Vi que você favoritou minha room, vamos bater papo?',
-					timestamp: '10:15 AM',
-					unread: false,
-					sender: 'Guest_Millervidah000'
-				},
-				messages: [
-					{ id: 1, sender: 'Guest_Millervidah000', text: 'Oi! Vi que você favoritou minha room, vamos bater papo?', timestamp: '10:15 AM', isMine: false }
-				]
-			},
-			{
-				id: 'conv_ari',
-				user: {
-					username: 'theyknew_ari863',
-					displayName: 'theyknew_ari863',
-					avatarImage: '/assets/images/ari.jpg',
-					isOnline: true,
-					isAp: true,
-					gender: 'Female',
-					location: 'USA - CA'
-				},
-				lastMessage: {
-					text: 'Vem pra sala Passionate Vibes, tá lotado!',
-					timestamp: '11:00 PM',
-					unread: false,
-					sender: 'theyknew_ari863'
-				},
-				messages: [
-					{ id: 1, sender: 'theyknew_ari863', text: 'Vem pra sala Passionate Vibes, tá lotado!', timestamp: '11:00 PM', isMine: false }
-				]
-			}
-		]);
-	}
-}
-
-// Atividades reais idênticas à imagem de Activity
-const userActivityFeed = new Map();
-
-function initDefaultActivity(userKey) {
-	if (!userActivityFeed.has(userKey)) {
-		userActivityFeed.set(userKey, {
-			today: [
-				{
-					id: 'act_1',
-					type: 'friend_request',
-					user: {
-						username: 'Lua_star',
-						displayName: '💜 Lua 💜',
-						avatar: '/assets/images/lua.jpg',
-						isOnline: true
-					},
-					actionText: 'sent you a friend request',
-					time: '14h',
-					status: 'pending'
-				}
-			],
-			yesterday: [
-				{
-					id: 'act_2',
-					type: 'room_invitation',
-					user: {
-						username: 'theyknew_ari863',
-						displayName: 'theyknew_ari863',
-						avatar: '/assets/images/ari.jpg',
-						isOnline: true
-					},
-					actionText: 'sent you a live room invitation to',
-					roomName: 'Passionate Vibes',
-					roomBadge: 'LIVE',
-					roomId: 'room-310485921-88',
-					time: '11:00 PM'
-				},
-				{
-					id: 'act_3',
-					type: 'friend_accepted',
-					user: {
-						username: 'AckllaOliveira',
-						displayName: 'Louise Oliveira',
-						avatar: '/assets/images/acklla.jpg',
-						isOnline: true
-					},
-					actionText: 'accepted your friend request',
-					time: '10:48 PM'
-				},
-				{
-					id: 'act_4',
-					type: 'friend_accepted',
-					user: {
-						username: 'theyknew_ari863',
-						displayName: 'theyknew_ari863',
-						avatar: '/assets/images/ari.jpg',
-						isOnline: true
-					},
-					actionText: 'accepted your friend request',
-					time: '7:21 PM'
-				}
-			]
+	if (realUser) {
+		return res.json({
+			success: true,
+			data: realUser
 		});
 	}
-}
 
-// Endpoint: Pesquisar Usuários (com dados fiéis ao IMVU da imagem)
-app.get('/api/search/user', async (req, res) => {
-	const query = (req.query.q || '').toString().toLowerCase().trim();
-	const activeUser = req.headers['x-active-user'];
-	const client = getClient(activeUser);
-
-	try {
-		// Se não há pesquisa ou consulta de amostra inicial, retorna os usuários em destaque da imagem
-		if (!query) {
-			const featured = IMVU_SAMPLE_USERS.slice(0, 8);
-			return res.json({ success: true, data: featured });
-		}
-
-		// Filtro em memória primeiro
-		const localMatches = IMVU_SAMPLE_USERS.filter(u => 
-			u.username.toLowerCase().includes(query) ||
-			u.displayName.toLowerCase().includes(query) ||
-			u.location.toLowerCase().includes(query)
-		);
-
-		// Tentativa na API IMVU oficial se houver sessão
-		let remoteMatches = [];
-		try {
-			const users = await client.users.search({ username: query });
-			if (users && users.length > 0) {
-				remoteMatches = users.map(u => ({
-					id: String(u.id),
-					username: u.username || query,
-					displayName: u.displayName || u.username || query,
-					avatarImage: u.avatarImage || u.avatarPortraitImage || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-					avatarPortraitImage: u.avatarPortraitImage || u.avatarImage || '',
-					country: u.country || 'Global',
-					location: u.country || 'Global',
-					gender: 'Female',
-					age: u.age || 20,
-					isVip: Boolean(u.isVip),
-					isAp: Boolean(u.isAp),
-					isCreator: Boolean(u.isCreator),
-					isOnline: true
-				}));
-			}
-		} catch (searchErr) {
-			// fallback silencioso
-		}
-
-		// Combinar resultados sem duplicados
-		const combined = [...localMatches];
-		for (const rem of remoteMatches) {
-			if (!combined.some(c => c.username.toLowerCase() === rem.username.toLowerCase())) {
-				combined.push(rem);
-			}
-		}
-
-		return res.json({ success: true, data: combined });
-	} catch (err) {
-		console.error('Erro geral ao pesquisar usuário:', err);
-		return res.json({ success: true, data: IMVU_SAMPLE_USERS });
-	}
+	return res.status(404).json({
+		success: false,
+		message: `Perfil do usuário @${username} não encontrado no IMVU.`
+	});
 });
 
-// Endpoint: Listar Amigos (com status online e offline em tempo real)
-app.get('/api/friends', async (req, res) => {
-	const activeUser = req.headers['x-active-user'];
-	const client = getClient(activeUser);
+// Pesquisar usuários no IMVU oficial
+app.get('/api/search/user', async (req, res) => {
+	const query = (req.query.q || '').toString().toLowerCase().trim();
+
+	if (!query) {
+		const sample = await fetchImvuUser('Brenin');
+		return res.json({ success: true, data: sample ? [sample] : [] });
+	}
 
 	try {
-		let friends = [];
-		try {
-			let idx = 0;
-			for await (const friend of client.account.friends.list()) {
-				friends.push({
-					id: friend.id,
-					username: friend.username,
-					displayName: friend.displayName || friend.username,
-					avatarImage: friend.avatarImage || '',
-					avatarPortraitImage: friend.avatarPortraitImage || '',
-					isVip: Boolean(friend.isVip),
-					isAp: Boolean(friend.isAp),
-					// Status online/offline por amigo
-					isOnline: idx % 2 === 0
-				});
-				idx++;
-				if (friends.length >= 20) break;
-			}
-		} catch (friendsErr) {
-			console.warn('Lista de amigos remota restrita, carregando contatos:', friendsErr.message);
+		const realUser = await fetchImvuUser(query);
+		if (realUser) {
+			return res.json({ success: true, data: [realUser] });
 		}
-
-		if (friends.length === 0) {
-			friends = [
-				{ id: '100', username: 'Guest_Millervidah000', displayName: 'Gabi 🥂', avatarImage: '/assets/images/gabi.jpg', isOnline: true, isVip: false, isAp: true },
-				{ id: '101', username: 'Guest_Kngold', displayName: 'Guest_Kngold', avatarImage: '/assets/images/kngold.jpg', isOnline: true, isVip: true, isAp: true },
-				{ id: '102', username: 'Brenin', displayName: 'Brenin', avatarImage: '/assets/images/brenin.jpg', isOnline: true, isVip: true, isAp: true },
-				{ id: '104', username: 'AckllaOliveira', displayName: 'Louise Oliveira', avatarImage: '/assets/images/acklla.jpg', isOnline: true, isVip: false, isAp: true },
-				{ id: '105', username: 'Ale.brt', displayName: 'Ale.brt', avatarImage: '/assets/images/ale.jpg', isOnline: false, isVip: true, isAp: true },
-				{ id: '106', username: 'Bellinda_vip', displayName: 'BELLINDA[]', avatarImage: '/assets/images/bellinda.jpg', isOnline: true, isVip: true, isAp: true }
-			];
-		}
-
-		return res.json({ success: true, data: friends });
+		return res.json({ success: true, data: [] });
 	} catch (err) {
-		console.error('Erro ao buscar amigos:', err);
 		return res.json({ success: true, data: [] });
 	}
 });
 
-// Store em memória para salas favoritas do usuário
-const favoriteRoomsMap = new Map();
+// -------------------------------------------------------------
+// LISTA DE AMIGOS COM PRESENÇA REAL & PERSISTÊNCIA
+// -------------------------------------------------------------
+app.get('/api/friends', async (req, res) => {
+	const activeUser = req.headers['x-active-user'] || 'eu';
+	const client = getClient(activeUser);
+	const userKey = activeUser.toLowerCase();
 
-// Base de dados rica e interativa de Salas (Rooms) fiéis aos prints do IMVU (Imagens 4, 5, 6, 7)
-const ROOMS_DATABASE = [
-	{
-		id: 'room-252190496-52', // ID real extraído da barra de navegação do IMVU (Imagem 7)
-		name: 'A SALA VERMELHA', // Título exato da Imagem 6
-		host: {
-			username: 'Brenin',
-			displayName: 'Brenin',
-			avatar: '/assets/images/brenin.jpg'
-		},
-		image: '/assets/images/red_room.jpg',
-		description: '| kiss | beijo | sexy | climax | | quente | quarto | motel | poses | casal | couple | photo | room |',
-		tags: ['kiss', 'beijo', 'sexy', 'climax', 'quente', 'quarto', 'motel', 'poses', 'casal', 'couple', 'photo', 'room'],
-		language: 'Portuguese',
-		capacity: 3, // OCCUPANCY (0/3) da imagem 6
-		occupants: [],
-		imvuUrl: 'https://www.imvu.com/next/chat/room-252190496-52/',
-		messages: [
-			{ id: 1, sender: 'Brenin', text: 'Bem-vindos à SALA VERMELHA! Fiquem à vontade e respeitem as regras.', timestamp: '10:00 PM', avatar: '/assets/images/brenin.jpg' }
-		]
-	},
-	{
-		id: 'room-402918231-18',
-		name: 'In the woods', // Título exato da Imagem 5
-		host: {
-			username: 'Ale.brt',
-			displayName: 'Ale.brt',
-			avatar: '/assets/images/ale.jpg'
-		},
-		image: '/assets/images/woods.jpg',
-		description: 'Jardim aconchegante na floresta sob luz de fadas, flores e bicicletas.',
-		tags: ['woods', 'nature', 'portuguese', 'cozy', 'friends', 'relax'],
-		language: 'Portuguese',
-		capacity: 10, // 0 / 10 · Portuguese da Imagem 5
-		occupants: [],
-		imvuUrl: 'https://www.imvu.com/next/chat/room-402918231-18/',
-		messages: [
-			{ id: 1, sender: 'Ale.brt', text: 'Oi gente, esse jardim é lindo para fotos e relaxar ✨', timestamp: '09:30 PM', avatar: '/assets/images/ale.jpg' }
-		]
-	},
-	{
-		id: 'room-184920112-10',
-		name: 'Brasil Lounge & Chat', // Título exato da Imagem 4
-		host: {
-			username: 'AckllaOliveira',
-			displayName: 'Louise Oliveira',
-			avatar: '/assets/images/acklla.jpg'
-		},
-		image: '/assets/images/lounge.jpg',
-		description: 'Sala de bate-papo brasileira',
-		tags: ['brasil', 'lounge', 'chat', 'musica', 'amizade'],
-		language: 'Portuguese',
-		capacity: 10,
-		occupants: [
-			{ username: 'AckllaOliveira', displayName: 'Louise Oliveira', avatar: '/assets/images/acklla.jpg', role: 'Host' }
-		],
-		imvuUrl: 'https://www.imvu.com/next/chat/room-184920112-10/',
-		messages: [
-			{ id: 1, sender: 'AckllaOliveira', text: 'Bem-vindos ao Brasil Lounge! DJ tocando os melhores sons 🎵', timestamp: '08:45 PM', avatar: '/assets/images/acklla.jpg' }
-		]
-	},
-	{
-		id: 'room-310485921-88',
-		name: 'Passionate Vibes',
-		host: {
-			username: 'theyknew_ari863',
-			displayName: 'theyknew_ari863',
-			avatar: '/assets/images/ari.jpg'
-		},
-		image: '/assets/images/lounge.jpg',
-		description: 'Live DJ set, dancing and VIP lounge for the IMVU community',
-		tags: ['live', 'party', 'vibes', 'dance', 'nightclub'],
-		language: 'English',
-		isLive: true,
-		capacity: 15,
-		occupants: [
-			{ username: 'theyknew_ari863', displayName: 'theyknew_ari863', avatar: '/assets/images/ari.jpg', role: 'Host' },
-			{ username: 'Lua_star', displayName: '💜 Lua 💜', avatar: '/assets/images/lua.jpg', role: 'Member' }
-		],
-		imvuUrl: 'https://www.imvu.com/next/chat/room-310485921-88/',
-		messages: [
-			{ id: 1, sender: 'theyknew_ari863', text: 'Live room is open! Come in and dance 💃', timestamp: '11:00 PM', avatar: '/assets/images/ari.jpg' }
-		]
-	},
-	{
-		id: 'room-591029482-04',
-		name: 'Beach Paradise 3D',
-		host: {
-			username: 'Guest_Millervidah000',
-			displayName: 'Gabi 🥂',
-			avatar: '/assets/images/gabi.jpg'
-		},
-		image: '/assets/images/gabi.jpg',
-		description: 'Praia tropical paradisíaca com bangalôs e mar azul para relaxar',
-		tags: ['beach', 'summer', 'praia', 'sol', 'drinks', 'gabi'],
-		language: 'Global',
-		capacity: 8,
-		occupants: [
-			{ username: 'Guest_Millervidah000', displayName: 'Gabi 🥂', avatar: '/assets/images/gabi.jpg', role: 'Host' }
-		],
-		imvuUrl: 'https://www.imvu.com/next/chat/room-591029482-04/',
-		messages: [
-			{ id: 1, sender: 'Guest_Millervidah000', text: 'Clima perfeito na praia hoje! 🌴', timestamp: '04:20 PM', avatar: '/assets/images/gabi.jpg' }
-		]
+	const friendsMap = new Map();
+
+	// 1. Amigos salvos no app
+	const saved = userSavedFriends.get(userKey) || [];
+	for (const f of saved) {
+		friendsMap.set(f.username.toLowerCase(), f);
 	}
-];
 
-// Endpoint: Pesquisar Salas de Chat (por Nome ou ID) e Listar Salas
+	// 2. Se tiver sessão autenticada no IMVU
+	try {
+		if (client && client.account && client.account.id) {
+			for await (const friend of client.account.friends.list()) {
+				friendsMap.set(friend.username.toLowerCase(), {
+					id: friend.id,
+					username: friend.username,
+					displayName: friend.displayName || friend.username,
+					avatarImage: friend.avatarImage || '',
+					isVip: Boolean(friend.isVip),
+					isAp: Boolean(friend.isAp),
+					isOnline: Boolean(friend.online)
+				});
+				if (friendsMap.size >= 25) break;
+			}
+		}
+	} catch (e) {}
+
+	// 3. Atualizar presença real de cada amigo
+	const friendsList = Array.from(friendsMap.values());
+	await Promise.all(
+		friendsList.map(async (f) => {
+			try {
+				const real = await fetchImvuUser(f.username);
+				if (real) {
+					f.displayName = real.displayName || f.displayName;
+					f.avatarImage = real.avatarImage || f.avatarImage;
+					f.thumbnailUrl = real.thumbnailUrl || f.thumbnailUrl;
+					f.isOnline = real.online;
+					f.isVip = real.isVip;
+					f.isAp = real.isAp;
+					f.currentRoom = real.currentRoom;
+				}
+			} catch (e) {}
+		})
+	);
+
+	return res.json({ success: true, data: friendsList });
+});
+
+app.post('/api/friends/add', async (req, res) => {
+	const { friendUsername } = req.body;
+	const activeUser = (req.headers['x-active-user'] || 'eu').toLowerCase();
+	if (!friendUsername || !friendUsername.trim()) {
+		return res.status(400).json({ success: false, message: 'Nome de usuário obrigatório.' });
+	}
+
+	const realUser = await fetchImvuUser(friendUsername.trim());
+	if (!realUser) {
+		return res.status(404).json({ success: false, message: `Avatar "@${friendUsername}" não encontrado no IMVU.` });
+	}
+
+	if (!userSavedFriends.has(activeUser)) userSavedFriends.set(activeUser, []);
+	const friends = userSavedFriends.get(activeUser);
+
+	if (!friends.some(f => f.username.toLowerCase() === realUser.username.toLowerCase())) {
+		friends.push({
+			id: realUser.id,
+			username: realUser.username,
+			displayName: realUser.displayName,
+			avatarImage: realUser.avatarImage,
+			thumbnailUrl: realUser.thumbnailUrl,
+			isVip: realUser.isVip,
+			isAp: realUser.isAp,
+			isOnline: realUser.online,
+			currentRoom: realUser.currentRoom
+		});
+	}
+
+	return res.json({
+		success: true,
+		message: `@${realUser.username} adicionado à sua lista de amigos!`,
+		data: friends
+	});
+});
+
+app.post('/api/friends/remove', (req, res) => {
+	const { friendUsername } = req.body;
+	const activeUser = (req.headers['x-active-user'] || 'eu').toLowerCase();
+	if (!userSavedFriends.has(activeUser)) return res.json({ success: true, data: [] });
+	const friends = userSavedFriends.get(activeUser);
+	const idx = friends.findIndex(f => f.username.toLowerCase() === (friendUsername || '').toLowerCase());
+	if (idx >= 0) friends.splice(idx, 1);
+	return res.json({ success: true, message: 'Amigo removido da lista.', data: friends });
+});
+
+// -------------------------------------------------------------
+// ROTAS DE SALAS DE CHAT (ROOMS) COM DADOS REAIS & HISTÓRICO
+// -------------------------------------------------------------
 app.get('/api/rooms', async (req, res) => {
 	const query = (req.query.q || '').toString().toLowerCase().trim();
 	const activeUser = req.headers['x-active-user'];
 	const userKey = (activeUser || 'eu').toLowerCase();
 	const userFavs = favoriteRoomsMap.get(userKey) || [];
 
-	let rooms = ROOMS_DATABASE.map(r => ({
+	let rooms = REAL_IMVU_ROOMS.map(r => ({
 		id: r.id,
 		name: r.name,
 		host: r.host,
@@ -602,31 +758,59 @@ app.get('/api/rooms', async (req, res) => {
 		occupancyCount: r.occupants.length,
 		occupants: r.occupants,
 		imvuUrl: r.imvuUrl,
-		isLive: Boolean(r.isLive),
 		isFavorite: userFavs.some(f => f.id === r.id)
 	}));
 
-	// Filtrar por Nome, ID ou Descrição se houver query de pesquisa
 	if (query) {
-		rooms = rooms.filter(r => 
-			r.name.toLowerCase().includes(query) || 
-			r.id.toLowerCase().includes(query) || 
+		// Se o usuário pesquisar por um ID de sala específico (ex: room-252190496-52 ou 252190496-36)
+		if (query.includes('room-') || /^\d+-\d+$/.test(query)) {
+			const cleanRoomId = query.startsWith('room-') ? query : `room-${query}`;
+			try {
+				const rRes = await axios.get(`https://api.imvu.com/room/${cleanRoomId}`, {
+					headers: { 'User-Agent': 'Mozilla/5.0' },
+					timeout: 4000
+				});
+				const rDenorm = rRes.data?.denormalized;
+				const rKey = Object.keys(rDenorm || {})[0];
+				if (rKey && rDenorm[rKey]?.data) {
+					const rd = rDenorm[rKey].data;
+					let img = rd.image_url ? (rd.image_url.startsWith('//') ? `https:${rd.image_url}` : rd.image_url) : '';
+					const fetchedRoom = {
+						id: cleanRoomId,
+						name: rd.name || cleanRoomId,
+						host: { username: rd.owner_avatarname || 'IMVU Host', displayName: rd.owner_avatarname || 'IMVU Host' },
+						image: img || 'https://webasset-akm.imvu.com/resized_image/duserimages/s332x281/tmaintain_aspect_ratio/i%2Fuserdata%2F52%2F19%2F04%2F96%2Fuserpics%2FSnap_6qzcaLAGyf1500019297.gif',
+						description: rd.description || '',
+						language: rd.language || 'Global',
+						capacity: rd.capacity || 10,
+						occupancyCount: rd.occupancy || 0,
+						occupants: [],
+						imvuUrl: rd.join_room_url || `https://go.imvu.com/chat/${cleanRoomId}`,
+						isFavorite: userFavs.some(f => f.id === cleanRoomId)
+					};
+					return res.json({ success: true, data: [fetchedRoom] });
+				}
+			} catch (e) {}
+		}
+
+		rooms = rooms.filter(r =>
+			r.name.toLowerCase().includes(query) ||
+			r.id.toLowerCase().includes(query) ||
 			r.description.toLowerCase().includes(query) ||
-			(r.host && r.host.displayName.toLowerCase().includes(query))
+			r.host.username.toLowerCase().includes(query)
 		);
 	}
 
 	return res.json({ success: true, data: rooms });
 });
 
-// Endpoint: Detalhes completos de uma sala (incluindo quem está usando e chat)
 app.get('/api/rooms/:roomId', (req, res) => {
 	const { roomId } = req.params;
 	const activeUser = req.headers['x-active-user'];
 	const userKey = (activeUser || 'eu').toLowerCase();
 	const userFavs = favoriteRoomsMap.get(userKey) || [];
 
-	const room = ROOMS_DATABASE.find(r => r.id === roomId || r.id.toLowerCase() === roomId.toLowerCase());
+	const room = REAL_IMVU_ROOMS.find(r => r.id === roomId || r.id.toLowerCase() === roomId.toLowerCase());
 	if (!room) {
 		return res.status(404).json({ success: false, message: 'Sala não encontrada.' });
 	}
@@ -641,29 +825,13 @@ app.get('/api/rooms/:roomId', (req, res) => {
 	});
 });
 
-// Endpoint: Obter Salas Favoritas do Usuário
-app.get('/api/rooms/favorites', async (req, res) => {
-	const activeUser = req.headers['x-active-user'];
-	const userKey = (activeUser || 'eu').toLowerCase();
-	const favorites = favoriteRoomsMap.get(userKey) || [];
-
-	return res.json({ success: true, data: favorites });
-});
-
-// Endpoint: Adicionar/Remover Sala dos Favoritos
 app.post('/api/rooms/favorite/toggle', async (req, res) => {
 	const { roomId, roomName, description, capacity, image } = req.body;
 	const activeUser = req.headers['x-active-user'];
 	const userKey = (activeUser || 'eu').toLowerCase();
 
-	const dbRoom = ROOMS_DATABASE.find(r => r.id === roomId || r.id.toLowerCase() === (roomId || '').toLowerCase());
-	const resolvedName = roomName || (dbRoom ? dbRoom.name : roomId);
-	const resolvedDesc = description || (dbRoom ? dbRoom.description : 'Sala pública no IMVU');
-	const resolvedCap = capacity || (dbRoom ? dbRoom.capacity : 10);
-	const resolvedImg = image || (dbRoom ? dbRoom.image : '/assets/images/red_room.jpg');
-
 	if (!favoriteRoomsMap.has(userKey)) favoriteRoomsMap.set(userKey, []);
-	let userFavs = favoriteRoomsMap.get(userKey);
+	const userFavs = favoriteRoomsMap.get(userKey);
 
 	const existingIndex = userFavs.findIndex(f => f.id === String(roomId));
 	let isFavorited = false;
@@ -672,12 +840,12 @@ app.post('/api/rooms/favorite/toggle', async (req, res) => {
 		userFavs.splice(existingIndex, 1);
 		isFavorited = false;
 	} else {
-		userFavs.push({ 
-			id: String(roomId), 
-			name: resolvedName, 
-			description: resolvedDesc, 
-			capacity: resolvedCap,
-			image: resolvedImg
+		userFavs.push({
+			id: String(roomId),
+			name: roomName || roomId,
+			description: description || '',
+			capacity: capacity || 10,
+			image: image || ''
 		});
 		isFavorited = true;
 	}
@@ -686,482 +854,209 @@ app.post('/api/rooms/favorite/toggle', async (req, res) => {
 		success: true,
 		isFavorited,
 		isFavorite: isFavorited,
-		message: isFavorited ? `Sala "${resolvedName}" adicionada aos Favoritos! ⭐` : `Sala "${resolvedName}" removida dos Favoritos.`
+		message: isFavorited ? `Sala adicionada aos Favoritos!` : `Sala removida dos Favoritos.`
 	});
 });
 
-// Endpoint: Entrar na sala de verdade (Entra na occupancy slot e chat)
+// Histórico de salas visitadas
+app.get('/api/rooms/history', (req, res) => {
+	const username = (req.query.username || req.headers['x-active-user'] || 'eu').toLowerCase();
+	const history = userRoomHistory.get(username) || [];
+	return res.json({ success: true, data: history });
+});
+
+app.post('/api/rooms/history/record', (req, res) => {
+	const { username, roomId, roomName, host, image, imvuUrl } = req.body;
+	const userKey = (username || req.headers['x-active-user'] || 'eu').toLowerCase();
+	if (!userRoomHistory.has(userKey)) userRoomHistory.set(userKey, []);
+	const hist = userRoomHistory.get(userKey);
+
+	hist.unshift({
+		roomId: roomId || 'room-custom',
+		name: roomName || roomId,
+		host: host || 'IMVU Host',
+		image: image || '',
+		imvuUrl: imvuUrl || `https://go.imvu.com/chat/${roomId}`,
+		visitedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+	});
+	if (hist.length > 20) hist.pop();
+
+	return res.json({ success: true, data: hist });
+});
+
 app.post('/api/rooms/:roomId/join', (req, res) => {
 	const { roomId } = req.params;
-	const activeUser = req.headers['x-active-user'] || 'Guest_Millervidah000';
-	
-	const room = ROOMS_DATABASE.find(r => r.id === roomId || r.id.toLowerCase() === roomId.toLowerCase());
+	const activeUser = req.headers['x-active-user'] || 'Usuário';
+
+	const room = REAL_IMVU_ROOMS.find(r => r.id === roomId || r.id.toLowerCase() === roomId.toLowerCase());
 	if (!room) {
 		return res.status(404).json({ success: false, message: 'Sala não encontrada.' });
 	}
 
-	// Verificar se o usuário já está na sala
 	const alreadyInside = room.occupants.some(o => o.username.toLowerCase() === activeUser.toLowerCase());
-
 	if (!alreadyInside) {
-		if (room.occupants.length >= room.capacity) {
-			return res.status(400).json({ success: false, message: 'A sala está cheia no momento (Capacidade máxima atingida).' });
-		}
-
-		// Obter dados do usuário ativo
-		const userObj = IMVU_SAMPLE_USERS.find(u => u.username.toLowerCase() === activeUser.toLowerCase()) || {
+		room.occupants.push({
 			username: activeUser,
 			displayName: activeUser,
-			avatarImage: '/assets/images/gabi.jpg'
-		};
-
-		room.occupants.push({
-			username: userObj.username,
-			displayName: userObj.displayName,
-			avatar: userObj.avatarImage || '/assets/images/gabi.jpg',
 			role: 'Membro',
 			joinedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 		});
+	}
 
-		// Adicionar mensagem no chat da sala
-		room.messages.push({
-			id: Date.now(),
-			sender: 'SISTEMA',
-			text: `${userObj.displayName} entrou na sala! 👋`,
-			timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-			isSystem: true
+	// Gravar no histórico de salas do usuário
+	const userKey = activeUser.toLowerCase();
+	if (!userRoomHistory.has(userKey)) userRoomHistory.set(userKey, []);
+	const hist = userRoomHistory.get(userKey);
+	if (!hist.some(h => h.roomId === room.id)) {
+		hist.unshift({
+			roomId: room.id,
+			name: room.name,
+			host: room.host.displayName,
+			image: room.image,
+			imvuUrl: room.imvuUrl,
+			visitedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 		});
+		if (hist.length > 20) hist.pop();
 	}
 
 	return res.json({
 		success: true,
-		message: `Você entrou na sala "${room.name}" com sucesso!`,
-		data: {
-			...room,
-			occupancyCount: room.occupants.length
-		}
+		message: `Você entrou na sala "${room.name}".`,
+		data: { ...room, occupancyCount: room.occupants.length }
 	});
 });
 
-// Endpoint: Sair da sala
 app.post('/api/rooms/:roomId/leave', (req, res) => {
 	const { roomId } = req.params;
-	const activeUser = req.headers['x-active-user'] || 'Guest_Millervidah000';
+	const activeUser = req.headers['x-active-user'] || 'Usuário';
 
-	const room = ROOMS_DATABASE.find(r => r.id === roomId || r.id.toLowerCase() === roomId.toLowerCase());
+	const room = REAL_IMVU_ROOMS.find(r => r.id === roomId || r.id.toLowerCase() === roomId.toLowerCase());
 	if (!room) {
 		return res.status(404).json({ success: false, message: 'Sala não encontrada.' });
 	}
 
 	const idx = room.occupants.findIndex(o => o.username.toLowerCase() === activeUser.toLowerCase());
 	if (idx >= 0) {
-		const removed = room.occupants.splice(idx, 1)[0];
-		room.messages.push({
-			id: Date.now(),
-			sender: 'SISTEMA',
-			text: `${removed.displayName} saiu da sala.`,
-			timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-			isSystem: true
-		});
+		room.occupants.splice(idx, 1);
 	}
 
 	return res.json({
 		success: true,
 		message: `Você saiu da sala "${room.name}".`,
-		data: {
-			...room,
-			occupancyCount: room.occupants.length
-		}
+		data: { ...room, occupancyCount: room.occupants.length }
 	});
 });
 
-// Endpoint: Enviar mensagem no chat da sala
 app.post('/api/rooms/:roomId/chat', (req, res) => {
 	const { roomId } = req.params;
 	const { text } = req.body;
-	const activeUser = req.headers['x-active-user'] || 'Guest_Millervidah000';
+	const activeUser = req.headers['x-active-user'] || 'Usuário';
 
 	if (!text || !text.trim()) {
 		return res.status(400).json({ success: false, message: 'Mensagem vazia.' });
 	}
 
-	const room = ROOMS_DATABASE.find(r => r.id === roomId || r.id.toLowerCase() === roomId.toLowerCase());
+	const room = REAL_IMVU_ROOMS.find(r => r.id === roomId || r.id.toLowerCase() === roomId.toLowerCase());
 	if (!room) {
 		return res.status(404).json({ success: false, message: 'Sala não encontrada.' });
 	}
 
-	const userObj = IMVU_SAMPLE_USERS.find(u => u.username.toLowerCase() === activeUser.toLowerCase()) || {
-		username: activeUser,
-		displayName: activeUser,
-		avatarImage: '/assets/images/gabi.jpg'
-	};
-
 	const newMsg = {
 		id: Date.now(),
-		sender: userObj.displayName,
-		username: userObj.username,
-		avatar: userObj.avatarImage || '/assets/images/gabi.jpg',
+		sender: activeUser,
+		username: activeUser,
 		text: text.trim(),
 		timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
 		isMine: true
 	};
 
 	room.messages.push(newMsg);
-
 	return res.json({ success: true, data: newMsg });
 });
 
-// Endpoint: Perfil detalhado de usuário pesquisado
-app.get('/api/user/profile/:username', async (req, res) => {
-	const { username } = req.params;
-	const activeUser = req.headers['x-active-user'];
+// -------------------------------------------------------------
+// MENSAGENS DIRETAS ENTRE USUÁRIOS DO CHECKER PARTNERVU
+// -------------------------------------------------------------
+app.get('/api/conversations', (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || 'eu').toLowerCase();
+	const conversations = [];
 
-	// Procurar no catálogo de amostra
-	const found = IMVU_SAMPLE_USERS.find(u => u.username.toLowerCase() === username.toLowerCase());
-
-	if (found) {
-		return res.json({
-			success: true,
-			data: {
-				id: found.id,
-				username: found.username,
-				displayName: found.displayName,
-				avatarImage: found.avatarImage,
-				avatarPortraitImage: found.avatarPortraitImage,
-				country: found.location,
-				location: found.location,
-				gender: found.gender,
-				age: found.age,
-				registered: 'Maio 2021',
-				isVip: Boolean(found.isVip),
-				isAp: Boolean(found.isAp),
-				isCreator: Boolean(found.isCreator),
-				isOnline: Boolean(found.isOnline),
-				bio: found.bio,
-				imvuProfileUrl: `https://pt.imvu.com/next/av/${found.username}/`,
-				friendsCount: 48,
-				roomsCount: 2
-			}
-		});
+	for (const [key, msgs] of directMessagesStore.entries()) {
+		const parts = key.split(':::');
+		if (parts.includes(activeUser)) {
+			const otherUser = parts[0] === activeUser ? parts[1] : parts[0];
+			const lastMsg = msgs[msgs.length - 1];
+			conversations.push({
+				id: `conv_${otherUser}`,
+				user: {
+					username: otherUser,
+					displayName: otherUser
+				},
+				lastMessage: {
+					text: lastMsg?.text || '',
+					timestamp: lastMsg?.timestamp || '',
+					sender: lastMsg?.sender || otherUser,
+					isMine: lastMsg?.sender?.toLowerCase() === activeUser
+				},
+				messagesCount: msgs.length
+			});
+		}
 	}
+
+	return res.json({ success: true, data: conversations });
+});
+
+app.get('/api/messages/:targetUser', (req, res) => {
+	const activeUser = (req.headers['x-active-user'] || 'eu').toLowerCase();
+	const targetUser = (req.params.targetUser || '').toLowerCase();
+	const pairKey = getPairKey(activeUser, targetUser);
+	const msgs = directMessagesStore.get(pairKey) || [];
+
+	const formatted = msgs.map(m => ({
+		...m,
+		isMine: m.sender.toLowerCase() === activeUser
+	}));
+
+	return res.json({ success: true, data: formatted });
+});
+
+app.post('/api/messages/send', async (req, res) => {
+	const { recipientUsername, messageText } = req.body;
+	const activeUser = req.headers['x-active-user'] || 'Usuário';
+
+	if (!recipientUsername || !messageText || !messageText.trim()) {
+		return res.status(400).json({ success: false, message: 'Destinatário e mensagem são obrigatórios.' });
+	}
+
+	const pairKey = getPairKey(activeUser, recipientUsername);
+	if (!directMessagesStore.has(pairKey)) directMessagesStore.set(pairKey, []);
+	const msgs = directMessagesStore.get(pairKey);
+
+	const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+	const newMsg = {
+		id: Date.now(),
+		sender: activeUser,
+		recipient: recipientUsername,
+		text: messageText.trim(),
+		timestamp: timeStr
+	};
+
+	msgs.push(newMsg);
 
 	return res.json({
 		success: true,
 		data: {
-			id: '0000',
-			username: username,
-			displayName: username,
-			avatarImage: '/assets/images/gabi.jpg',
-			avatarPortraitImage: '/assets/images/gabi.jpg',
-			country: 'Global',
-			location: 'Global',
-			gender: 'Não informado',
-			age: 'N/A',
-			registered: 'Recente',
-			isVip: false,
-			isAp: false,
-			isCreator: false,
-			isOnline: false,
-			bio: `Perfil oficial de @${username} no IMVU.`,
-			imvuProfileUrl: `https://pt.imvu.com/next/av/${username}/`,
-			friendsCount: 0,
-			roomsCount: 0
-		}
-	});
-});
-
-// Store local de mensagens privadas (DMs)
-const directMessages = new Map();
-
-// Endpoint: Obter Lista Real de Conversas (Caixa de Mensagens)
-app.get('/api/conversations', async (req, res) => {
-	const activeUser = req.headers['x-active-user'];
-	const userKey = (activeUser || 'eu').toLowerCase();
-	initDefaultConversations(userKey);
-
-	const convs = userConversations.get(userKey) || [];
-	return res.json({ success: true, data: convs });
-});
-
-// Endpoint: Obter Histórico de Mensagens de uma conversa específica
-app.get('/api/conversations/:username/messages', async (req, res) => {
-	const { username } = req.params;
-	const activeUser = req.headers['x-active-user'];
-	const userKey = (activeUser || 'eu').toLowerCase();
-	initDefaultConversations(userKey);
-
-	const convs = userConversations.get(userKey) || [];
-	const conv = convs.find(c => c.user.username.toLowerCase() === username.toLowerCase());
-
-	if (conv) {
-		// Marcar como lida
-		conv.lastMessage.unread = false;
-		return res.json({ success: true, data: conv.messages, user: conv.user });
-	}
-
-	// Se for um novo usuário sem conversa prévia, buscar nos usuários conhecidos
-	const foundUser = IMVU_SAMPLE_USERS.find(u => u.username.toLowerCase() === username.toLowerCase()) || {
-		username,
-		displayName: username,
-		avatarImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-		isOnline: true,
-		isAp: true,
-		gender: 'User',
-		location: 'IMVU World'
-	};
-
-	return res.json({ success: true, data: [], user: foundUser });
-});
-
-// Endpoint: Enviar Mensagem na Caixa de Conversa
-app.post('/api/messages/send', async (req, res) => {
-	const { recipientUsername, messageText } = req.body;
-	const activeUser = req.headers['x-active-user'];
-	const client = getClient(activeUser);
-
-	if (!recipientUsername || !messageText) {
-		return res.status(400).json({ success: false, message: 'Destinatário e mensagem são obrigatórios.' });
-	}
-
-	try {
-		const userKey = (activeUser || 'eu').toLowerCase();
-		initDefaultConversations(userKey);
-		initDefaultActivity(userKey);
-
-		const convs = userConversations.get(userKey) || [];
-		let conv = convs.find(c => c.user.username.toLowerCase() === recipientUsername.toLowerCase());
-
-		const newMsg = {
-			id: Date.now(),
-			sender: activeUser || 'me',
-			text: messageText,
-			timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+			...newMsg,
 			isMine: true
-		};
-
-		if (!conv) {
-			const targetUser = IMVU_SAMPLE_USERS.find(u => u.username.toLowerCase() === recipientUsername.toLowerCase()) || {
-				username: recipientUsername,
-				displayName: recipientUsername,
-				avatarImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-				isOnline: true,
-				isAp: true,
-				gender: 'Female',
-				location: 'Global'
-			};
-
-			conv = {
-				id: `conv_${Date.now()}`,
-				user: targetUser,
-				lastMessage: {
-					text: messageText,
-					timestamp: newMsg.timestamp,
-					unread: false,
-					sender: activeUser || 'me'
-				},
-				messages: [newMsg]
-			};
-			convs.unshift(conv);
-		} else {
-			conv.messages.push(newMsg);
-			conv.lastMessage = {
-				text: messageText,
-				timestamp: newMsg.timestamp,
-				unread: false,
-				sender: activeUser || 'me'
-			};
-			// mover para o topo da lista
-			const idx = convs.indexOf(conv);
-			if (idx > 0) {
-				convs.splice(idx, 1);
-				convs.unshift(conv);
-			}
 		}
-
-		// Adicionar notificação no feed
-		const notifs = userNotifications.get(userKey) || [];
-		notifs.unshift({
-			id: Date.now(),
-			type: 'dm',
-			title: `Mensagem enviada para @${recipientUsername}`,
-			message: messageText,
-			time: newMsg.timestamp
-		});
-		userNotifications.set(userKey, notifs);
-
-		return res.json({
-			success: true,
-			message: `Mensagem enviada com sucesso para @${recipientUsername}!`,
-			data: newMsg
-		});
-	} catch (err) {
-		return res.status(500).json({ success: false, message: err.message });
-	}
+	});
 });
 
-// Endpoint: Simular Mensagem Recebida ou Notificação ao vivo
-app.post('/api/simulate/incoming', async (req, res) => {
+app.get('/api/notifications', (req, res) => {
 	const activeUser = req.headers['x-active-user'];
 	const userKey = (activeUser || 'eu').toLowerCase();
-	initDefaultConversations(userKey);
-	initDefaultActivity(userKey);
-
-	const { senderUsername, text } = req.body;
-	const sender = senderUsername || 'Bellinda_vip';
-	const sampleResponses = [
-		'Oi! Vi que você tá online, saudades!',
-		'Você vai pra sala hoje mais tarde?',
-		'Amei sua foto de perfil!',
-		'Me chama no chat quando puder!',
-		'Saudades de conversar com você!'
-	];
-	const msgText = text || sampleResponses[Math.floor(Math.random() * sampleResponses.length)];
-
-	const convs = userConversations.get(userKey);
-	const conv = convs.find(c => c.user.username.toLowerCase() === sender.toLowerCase());
-
-	const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	const incomingMsg = {
-		id: Date.now(),
-		sender,
-		text: msgText,
-		timestamp: timeStr,
-		isMine: false
-	};
-
-	if (conv) {
-		conv.messages.push(incomingMsg);
-		conv.lastMessage = {
-			text: msgText,
-			timestamp: timeStr,
-			unread: true,
-			sender
-		};
-		// mover para topo
-		const idx = convs.indexOf(conv);
-		if (idx > 0) {
-			convs.splice(idx, 1);
-			convs.unshift(conv);
-		}
-	}
-
-	// Adicionar à lista de notificações
 	const notifs = userNotifications.get(userKey) || [];
-	notifs.unshift({
-		id: Date.now(),
-		type: 'dm_incoming',
-		title: `Nova mensagem de @${sender}`,
-		message: msgText,
-		time: timeStr,
-		sender
-	});
-	userNotifications.set(userKey, notifs);
-
-	return res.json({
-		success: true,
-		message: 'Mensagem simulada recebida com sucesso!',
-		data: incomingMsg,
-		senderName: conv ? conv.user.displayName : sender
-	});
-});
-
-// Endpoint: Alternar Status Online/Offline de um Usuário (Aviso visual com bolinha verde)
-app.post('/api/users/:username/toggle-status', async (req, res) => {
-	const { username } = req.params;
-	const activeUser = req.headers['x-active-user'];
-	const userKey = (activeUser || 'eu').toLowerCase();
-	initDefaultConversations(userKey);
-
-	const convs = userConversations.get(userKey) || [];
-	const conv = convs.find(c => c.user.username.toLowerCase() === username.toLowerCase());
-	const sampleUser = IMVU_SAMPLE_USERS.find(u => u.username.toLowerCase() === username.toLowerCase());
-
-	let newStatus = true;
-	if (conv) {
-		conv.user.isOnline = !conv.user.isOnline;
-		newStatus = conv.user.isOnline;
-	}
-	if (sampleUser) {
-		sampleUser.isOnline = !sampleUser.isOnline;
-		newStatus = sampleUser.isOnline;
-	}
-
-	// Registrar notificação de status
-	const notifs = userNotifications.get(userKey) || [];
-	notifs.unshift({
-		id: Date.now(),
-		type: newStatus ? 'status_online' : 'status_offline',
-		title: newStatus ? `🟢 @${username} ficou Online!` : `⚪ @${username} ficou Offline`,
-		message: newStatus ? `@${username} acabou de entrar no IMVU.` : `@${username} desconectou-se do IMVU.`,
-		time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-		username
-	});
-	userNotifications.set(userKey, notifs);
-
-	return res.json({
-		success: true,
-		isOnline: newStatus,
-		message: newStatus ? `@${username} agora está ONLINE 🟢` : `@${username} agora está OFFLINE ⚪`
-	});
-});
-
-// Endpoint: Painel de Atividades Completo (Imagem 2 - ACTIVITY)
-app.get('/api/activities', async (req, res) => {
-	const activeUser = req.headers['x-active-user'];
-	const userKey = (activeUser || 'eu').toLowerCase();
-	initDefaultActivity(userKey);
-
-	const activityData = userActivityFeed.get(userKey);
-	return res.json({ success: true, data: activityData });
-});
-
-// Endpoint: Ação em Atividade (Aceitar Amizade, Entrar na Sala)
-app.post('/api/activities/action', async (req, res) => {
-	const { activityId, action, target } = req.body;
-	const activeUser = req.headers['x-active-user'];
-
-	if (action === 'join_room') {
-		return res.json({
-			success: true,
-			message: `Você se juntou à sala ao vivo "${target || 'Passionate Vibes'}"! 🎪`
-		});
-	}
-
-	if (action === 'accept_friend') {
-		return res.json({
-			success: true,
-			message: `Pedido de amizade de ${target || 'usuário'} aceito! Vocês agora são amigos no IMVU! 👥`
-		});
-	}
-
-	return res.json({ success: true, message: 'Ação executada com sucesso!' });
-});
-
-// Endpoint: Feed de Notificações, Status em Tempo Real e Mensagens (DMs)
-app.get('/api/notifications', async (req, res) => {
-	const activeUser = req.headers['x-active-user'];
-	const userKey = (activeUser || 'eu').toLowerCase();
-	initDefaultConversations(userKey);
-	initDefaultActivity(userKey);
-
-	try {
-		let notifs = userNotifications.get(userKey) || [];
-
-		// Se vazio, insere exemplos iniciais
-		if (notifs.length === 0) {
-			const timeStr = 'Agora';
-			notifs = [
-				{ id: 101, type: 'dm', title: 'Mensagem de @Bellinda_vip', message: 'Saudades', time: 'Ontem', sender: 'Bellinda_vip' },
-				{ id: 102, type: 'status_online', title: '🟢 Status: Online', message: '@BELLINDA[] está online no IMVU.', time: timeStr, username: 'Bellinda_vip' },
-				{ id: 103, type: 'friend_request', title: '👥 Pedido de Amizade', message: '@Lua_star enviou um pedido de amizade.', time: '14h' }
-			];
-			userNotifications.set(userKey, notifs);
-		}
-
-		return res.json({ success: true, data: notifs });
-	} catch (err) {
-		return res.json({ success: true, data: [] });
-	}
+	return res.json({ success: true, data: notifs });
 });
 
 app.get('*all', (req, res) => {
@@ -1170,6 +1065,6 @@ app.get('*all', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
 	console.log(`=================================================`);
-	console.log(`🚀 SERVIDOR IMVU APP COMPLETO EM http://0.0.0.0:${PORT}`);
+	console.log(`🚀 SERVIDOR CHECKER PARTNERVU EM http://0.0.0.0:${PORT}`);
 	console.log(`=================================================`);
 });

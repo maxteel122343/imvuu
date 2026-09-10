@@ -1,6 +1,6 @@
 {
-  "name": "IMVU Dashboard",
-  "description": "Interactive dashboard for IMVU web client featuring authentication, notifications, direct messaging, chat room exploration, friend lists, and avatar profiles.",
+  "name": "checker partinervu",
+  "description": "Monitor e checker em tempo real de avatares do IMVU com rastreamento de status online/offline, histórico detalhado, notificações instantâneas e extração de dados reais de perfis e salas.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
